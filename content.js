@@ -10,7 +10,8 @@ const blockedMessages = [
     "ur name",
     "name?",
     "M bi",
-    "I'm boy"
+    "I'm boy",
+    "Name"
 ];
 
 // Flag to track if we've already greeted in the current conversation
