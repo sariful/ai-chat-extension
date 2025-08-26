@@ -1,6 +1,20 @@
 // === Configuration ===
 const allowedCountries = ["India"];
-const blockedMessages = ["M", "M or f", "M here", "F?"];
+const blockedMessages = [
+    "M",
+    "M or f",
+    "M here",
+    "F?",
+    "Hi m",
+    "your name",
+    "ur name",
+    "name?",
+    "M bi",
+    "I'm boy"
+];
+
+// Flag to track if we've already greeted in the current conversation
+let hasGreeted = false;
 
 function triggerNewConnection() {
     const newConnectBtn = $("#skip-btn");
@@ -9,6 +23,8 @@ function triggerNewConnection() {
         newConnectBtn[0].click(); // Trigger native click
         newConnectBtn[0].click(); // Trigger native click
     }
+    // Reset greeting flag for new connection
+    hasGreeted = false;
 }
 
 function sendMessage(message, sendNow = false) {
@@ -35,6 +51,17 @@ function checkMessages() {
         const text = $(this).text().trim();
 
         if (messageLength <= 4) {
+            // New Connection Detection - Send "Hi" automatically (only once)
+            if ($(this).hasClass("message-status") && text.includes("You are now talking to a random stranger") && !hasGreeted) {
+                console.log("New connection detected, sending Hi...");
+                setTimeout(() => {
+                    if (!hasGreeted) { // Double-check before sending
+                        hasGreeted = true; // Mark as greeted right before sending
+                        sendMessage("Hi", true);
+                    }
+                }, 5000); // Small delay to ensure connection is fully established
+            }
+
             // Country Check
             if ($(this).hasClass("country-info")) {
                 const country = text.split(" ")[0];
@@ -73,6 +100,7 @@ function checkMessages() {
             // Disconnected Message
             if (text.includes("Stranger has disconnected")) {
                 console.log(`Stranger disconnected detected. with ${messageLength} messages present.`);
+                hasGreeted = false; // Reset greeting flag for next connection
                 triggerNewConnection();
                 return false;
             }
