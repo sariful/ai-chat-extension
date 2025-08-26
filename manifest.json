@@ -1,0 +1,24 @@
+{
+    "manifest_version": 3,
+    "name": "DOM Watcher",
+    "version": "1.0",
+    "description": "Watches for specific messages and triggers actions automatically.",
+    "permissions": [
+        "scripting",
+        "activeTab"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "jquery.min.js",
+                "content.js"
+            ]
+        }
+    ],
+    "icons": {
+        "48": "icons/icon.svg"
+    }
+}
