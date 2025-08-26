@@ -17,16 +17,17 @@ const blockedMessages = [
 // === OpenAI / ChatGPT Auto Reply Configuration ===
 // The API key is NOT stored in code. On first run, user is prompted and key saved to chrome.storage.local.
 // You can reset by running: chrome.storage.local.remove('OPENAI_API_KEY') from DevTools console.
-const AI_SYSTEM_PROMPT = `You are a friendly, concise chat companion in a random text chat.
+const AI_SYSTEM_PROMPT = `You are a friendly, concise chat companion, only chat, in a random text chat.
 Rules:
 - be funny, sarcastic, humorous.
 - Keep each reply under 2-5 words strictly unless you have something to explain in length, then keep it maximum 15.
 - make yourself look as human as possible.
 - Since this is a chat, people will use short form like wby, wyd, wdym or others, please understand that.
-- You can also use that short form in the reply to make the conversation feel more natural and short.
+- You can also use short forms in the reply to make the conversation feel more natural and short.
 - If asked for personal info, deflect kindly.
 - Avoid explicit content.
-- if someone aks if you are F or M, F stands for female and M stands for male. say im female.
+- if someone asks if you are AI, deflect politely.
+- if someone aks if you are F or M (F stands for female and M stands for male) in that case, if the other person is male say female otherwise male.
 - every response should be lowercase
 `;
 
@@ -36,6 +37,61 @@ let conversationHistory = [
 ];
 const processedStrangerMessages = new Set();
 let aiReplyInFlight = false;
+let aiEnabled = true; // runtime flag (persisted in storage)
+
+// === AI Enable/Disable Toggle ===
+function initAIToggleUI() {
+    try {
+        // Avoid duplicates
+        if (document.getElementById("ai-toggle-btn")) return;
+
+        // Load persisted state first
+        chrome.storage.local.get(["AI_ENABLED"], (res) => {
+            if (typeof res.AI_ENABLED === "boolean") {
+                aiEnabled = res.AI_ENABLED;
+            }
+            createOrUpdateButton();
+        });
+
+        function createOrUpdateButton() {
+            let btn = document.getElementById("ai-toggle-btn");
+            if (!btn) {
+                btn = document.createElement("button");
+                btn.id = "ai-toggle-btn";
+                btn.type = "button";
+                document.body.appendChild(btn);
+                btn.addEventListener("click", () => {
+                    aiEnabled = !aiEnabled;
+                    chrome.storage.local.set({ AI_ENABLED: aiEnabled });
+                    updateButtonAppearance(btn);
+                });
+            }
+            updateButtonAppearance(btn);
+        }
+
+        function updateButtonAppearance(btn) {
+            btn.textContent = aiEnabled ? "AI: ON" : "AI: OFF";
+            btn.style.cssText = `
+                position:fixed;top:10px;right:10px;z-index:2147483647;cursor:pointer;
+                padding:6px 10px;border:1px solid #222;border-radius:6px;font:12px/1.2 sans-serif;
+                background:${aiEnabled ? '#16a34a' : '#dc2626'};color:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);
+                opacity:0.85;transition:all .2s ease;letter-spacing:.5px;
+            `;
+            btn.onmouseenter = () => { btn.style.opacity = '1'; };
+            btn.onmouseleave = () => { btn.style.opacity = '0.85'; };
+            btn.title = aiEnabled ? "Click to disable AI auto-replies" : "Click to enable AI auto-replies";
+        }
+    } catch (e) {
+        console.warn("Failed to init AI toggle UI", e);
+    }
+}
+
+// Initialize toggle ASAP (DOM may already be ready in MV3)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAIToggleUI);
+} else {
+    initAIToggleUI();
+}
 
 // Fetch / ensure API key
 async function ensureApiKey() {
@@ -108,9 +164,10 @@ async function getChatCompletion(userMessage) {
 
 async function maybeReplyToStranger(strangerText) {
     if (aiReplyInFlight) return; // avoid overlapping
+    if (!aiEnabled) return; // AI disabled
     aiReplyInFlight = true;
     const reply = await getChatCompletion(strangerText);
-    if (reply) {
+    if (reply && aiEnabled) { // re-check enabled before sending
         // Small natural delay 1.5-3.5s
         sendMessage(reply, true);
         aiReplyInFlight = false;
