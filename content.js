@@ -124,6 +124,8 @@ async function getChatCompletion(userMessage) {
     }
 
     try {
+        // --- Typing indicator start ---
+        startTypingIndicator();
         const resp = await fetch("https://api.openai.com/v1/responses", {
             method: "POST",
             headers: {
@@ -138,6 +140,7 @@ async function getChatCompletion(userMessage) {
         if (!resp.ok) {
             const txt = await resp.text();
             console.error("OpenAI error", resp.status, txt);
+            stopTypingIndicator();
             return null;
         }
         const data = await resp.json();
@@ -155,10 +158,50 @@ async function getChatCompletion(userMessage) {
         if (aiMsg) {
             conversationHistory.push({ role: "assistant", content: aiMsg });
         }
+        stopTypingIndicator();
         return aiMsg || null;
     } catch (e) {
         console.error("Fetch to OpenAI failed", e);
+        stopTypingIndicator();
         return null;
+    }
+}
+
+// === Typing Indicator Helpers ===
+let typingIndicatorInterval = null;
+function startTypingIndicator() {
+    try {
+        if (typingIndicatorInterval) return; // already running
+        const input = $("#message-input");
+        if (!input.length) return;
+        let dots = "";
+        input.data("__origVal", input.val());
+        typingIndicatorInterval = setInterval(() => {
+            dots = dots.length < 3 ? dots + "." : "";
+            input.val("typing" + dots);
+            // Trigger events so the site (if it listens) treats it like real typing
+            input.trigger("input").trigger("change").trigger("keypress");
+        }, 550);
+    } catch (e) {
+        console.warn("Failed to start typing indicator", e);
+    }
+}
+
+function stopTypingIndicator(preserveText = false) {
+    try {
+        if (typingIndicatorInterval) {
+            clearInterval(typingIndicatorInterval);
+            typingIndicatorInterval = null;
+        }
+        const input = $("#message-input");
+        if (!input.length) return;
+        if (!preserveText) {
+            input.val("");
+        }
+        input.removeData("__origVal");
+        input.trigger("input").trigger("change").trigger("keypress");
+    } catch (e) {
+        console.warn("Failed to stop typing indicator", e);
     }
 }
 
