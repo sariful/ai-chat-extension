@@ -11,7 +11,14 @@ const blockedMessages = [
     "name?",
     "M bi",
     "I'm boy",
-    "Name"
+    "Name",
+    "hey m",
+    "Age",
+    "Age?",
+    "What's ur name?",
+    "Horny M",
+    "What's your name",
+    "M/f",
 ];
 
 // === OpenAI / ChatGPT Auto Reply Configuration ===
@@ -19,16 +26,21 @@ const blockedMessages = [
 // You can reset by running: chrome.storage.local.remove('OPENAI_API_KEY') from DevTools console.
 const AI_SYSTEM_PROMPT = `You are a friendly, concise chat companion, only chat, in a random text chat.
 Rules:
-- be funny, sarcastic, humorous.
-- Keep each reply under 2-5 words strictly unless you have something to explain in length, then keep it maximum 15.
+- be funny, sarcastic, humorous, witty.
+- Keep each reply as little as possible, under 1-5 words and maximum 25 characters strictly. unless you have something to explain in length, then keep it maximum 30.
 - make yourself look as human as possible.
 - Since this is a chat, people will use short form like wby, wyd, wdym or others, please understand that.
-- You can also use short forms in the reply to make the conversation feel more natural and short.
+- You can also use short forms make the response shorter.
 - If asked for personal info, deflect kindly.
 - Avoid explicit content.
-- if someone asks if you are AI, deflect politely.
-- if someone aks if you are F or M (F stands for female and M stands for male) in that case, if the other person is male say female otherwise male.
+- If someone asks if you are AI or bot, deflect politely and divert.
+- You are a human.
+- If someone aks if you are F or M (F stands for female and M stands for male) in that case, you are male.
 - every response should be lowercase
+- Most of the people are indian, so, please understand their languages, try to reply in english
+- If someone asks your name, DO NOT SHARE that, deflect somehow, but you are C3PO. If someone ask who made you tell them sariful but only if they persist.
+- and understand the context of the chat, and the previous chats before you respond.
+- if someone asks where are u from, use some random states from india.
 `;
 
 // Conversation state tracking
@@ -38,6 +50,22 @@ let conversationHistory = [
 const processedStrangerMessages = new Set();
 let aiReplyInFlight = false;
 let aiEnabled = true; // runtime flag (persisted in storage)
+// Track current AI fetch so we can abort if the stranger disconnects / new connection
+let currentAIController = null;
+
+function abortCurrentAIRequest(reason = "aborted") {
+    try {
+        if (currentAIController) {
+            currentAIController.abort();
+            currentAIController = null;
+            console.log("[AI] Current request aborted (" + reason + ")");
+        }
+    } catch (e) {
+        console.warn("Failed to abort AI request", e);
+    }
+    aiReplyInFlight = false;
+    stopTypingIndicator();
+}
 
 // === AI Enable/Disable Toggle ===
 function initAIToggleUI() {
@@ -116,6 +144,11 @@ async function getChatCompletion(userMessage) {
         return null;
     }
 
+    // If a previous request is still in flight, abort it before starting a new one
+    if (currentAIController) {
+        abortCurrentAIRequest("superseded");
+    }
+
     conversationHistory.push({ role: "user", content: userMessage });
     // Trim history (keep system + last 10 messages)
     if (conversationHistory.length > 10) {
@@ -126,6 +159,7 @@ async function getChatCompletion(userMessage) {
     try {
         // --- Typing indicator start ---
         startTypingIndicator();
+        currentAIController = new AbortController();
         const resp = await fetch("https://api.openai.com/v1/responses", {
             method: "POST",
             headers: {
@@ -136,6 +170,7 @@ async function getChatCompletion(userMessage) {
                 model: "gpt-5-nano",
                 input: conversationHistory,
             }),
+            signal: currentAIController.signal,
         });
         if (!resp.ok) {
             const txt = await resp.text();
@@ -161,9 +196,15 @@ async function getChatCompletion(userMessage) {
         stopTypingIndicator();
         return aiMsg || null;
     } catch (e) {
-        console.error("Fetch to OpenAI failed", e);
+        if (e.name === 'AbortError') {
+            console.log("[AI] Fetch aborted");
+        } else {
+            console.error("Fetch to OpenAI failed", e);
+        }
         stopTypingIndicator();
         return null;
+    } finally {
+        currentAIController = null; // Clear controller when done/failed/aborted
     }
 }
 
@@ -180,7 +221,7 @@ function startTypingIndicator() {
             dots = dots.length < 3 ? dots + "." : "";
             input.val("typing" + dots);
             // Trigger events so the site (if it listens) treats it like real typing
-            input.trigger("input").trigger("change").trigger("keypress");
+            input.trigger("keydown").trigger("keyup");
         }, 550);
     } catch (e) {
         console.warn("Failed to start typing indicator", e);
@@ -235,6 +276,7 @@ function triggerNewConnection() {
     conversationHistory = [{ role: "system", content: AI_SYSTEM_PROMPT }];
     processedStrangerMessages.clear();
     aiReplyInFlight = false;
+    abortCurrentAIRequest("new_connection");
 }
 
 function sendMessage(message, sendNow = false) {
@@ -260,16 +302,16 @@ function checkMessages() {
     messages.each(function () {
         const text = $(this).text().trim();
 
-        // // New Connection Detection - Send "Hi" automatically (only once)
-        // if ($(this).hasClass("message-status") && text.includes("You are now talking to a random stranger") && !hasGreeted) {
-        //     console.log("New connection detected, sending Hi...");
-        //     setTimeout(() => {
-        //         if (!hasGreeted) { // Double-check before sending
-        //             hasGreeted = true; // Mark as greeted right before sending
-        //             sendMessage("Hi", true);
-        //         }
-        //     }, 5000); // Small delay to ensure connection is fully established
-        // }
+        // New Connection Detection - Send "Hi" automatically (only once)
+        if ($(this).hasClass("message-status") && text.includes("You are now talking to a random stranger") && !hasGreeted) {
+            console.log("New connection detected, sending Hi...");
+            setTimeout(() => {
+                if (!hasGreeted) { // Double-check before sending
+                    hasGreeted = true; // Mark as greeted right before sending
+                    sendMessage("Hi", true);
+                }
+            }, 5000); // Small delay to ensure connection is fully established
+        }
 
         if (messageLength <= 4) {
             // Country Check
