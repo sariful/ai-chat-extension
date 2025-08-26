@@ -11,43 +11,74 @@ function triggerNewConnection() {
     }
 }
 
+function sendMessage(message, sendNow = false) {
+    console.log("new connected, sending hi");
+
+    const messageInput = $("#message-input");
+    if (messageInput.length) {
+        messageInput.val(message);
+        const sendButton = $("#send-btn");
+
+        if (sendNow && sendButton.length) {
+            sendButton[0].click(); // Trigger native click
+        }
+    }
+}
+
 function checkMessages() {
     const messages = $(
         "#messages .message, #messages .message-status, #messages .country-info"
     );
+    const messageLength = $("#messages .message").length;
 
     messages.each(function () {
         const text = $(this).text().trim();
 
-        // 1. Country Check
-        if ($(this).hasClass("country-info")) {
-            const country = text.split(" ")[0];
-            if (!allowedCountries.includes(country)) {
-                console.log(`Blocked country: ${country}`);
-                triggerNewConnection();
-                return false; // Stop .each()
+        if (messageLength <= 4) {
+            // Country Check
+            if ($(this).hasClass("country-info")) {
+                const country = text.split(" ")[0];
+                if (!allowedCountries.includes(country)) {
+                    console.log(`Blocked country: ${country}`);
+                    triggerNewConnection();
+                    return false; // Stop .each()
+                }
             }
-        }
 
-        // 2. Stranger Message Check
-        if ($(this).hasClass("message")) {
-            for (const blockedMessage of blockedMessages) {
-                const blockedMessageFull = blockedMessage.toLowerCase().trim();
+            // Stranger Message Check
+            if ($(this).hasClass("message")) {
+                const normalizedText = text
+                    .replace(/^Stranger:\s*/i, "")
+                    .toLowerCase()
+                    .trim();
+                // Block exact matches
 
-                const normalizedText = text.replace(/^Stranger:\s*/i, "");
-                if (normalizedText.toLowerCase() == blockedMessageFull) {
+                const blockedCondition = blockedMessages.some((blockedMessage) => {
+                    return normalizedText === blockedMessage.toLowerCase().trim();
+                });
+
+                if (blockedCondition) {
                     console.log(`Blocked message: ${normalizedText}`);
                     triggerNewConnection();
                     return false;
                 }
+                // Block 'M' followed by optional space and numbers (e.g., 'M20', 'M 20')
+                if (/^m\s*\d{1,3}$/.test(normalizedText)) {
+                    console.log(`Blocked message (pattern): ${normalizedText}`);
+                    triggerNewConnection();
+                    return false;
+                }
             }
-        }
 
-        // 3. Disconnected Message
-        if (text.includes("Stranger has disconnected")) {
-            console.log("Stranger disconnected detected.");
-            triggerNewConnection();
-            return false;
+            // Disconnected Message
+            if (text.includes("Stranger has disconnected")) {
+                console.log(`Stranger disconnected detected. with ${messageLength} messages present.`);
+                triggerNewConnection();
+                return false;
+            }
+        } else {
+            console.log("Not checking anymore");
+
         }
     });
 }
@@ -66,4 +97,16 @@ if (targetNode) {
     });
 
     console.log("DOM Watcher started with jQuery");
+
+    // 4. Auto agree
+    const agreeButton = $("#agree-btn");
+    console.log(agreeButton);
+
+    setTimeout(() => {
+        if (agreeButton.length) {
+            console.log("Auto Agreed");
+
+            agreeButton[0].click(); // Trigger native click
+        }
+    }, 1000);
 }
