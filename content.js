@@ -8,7 +8,7 @@ const CONFIG = {
     ],
     aiSystemPrompt: `You are a friendly, concise chat companion, only chat, in a random text chat.
         Rules:
-        - be sarcastic, humorous, curious. gen-z.
+        - be curious, understanding, witty.
         - Keep each reply as little as possible, under 1-5 words and maximum 25 characters.
         - make yourself look as human as possible.
         - If asked for personal info, deflect kindly.
@@ -105,7 +105,9 @@ function userMessageDetected(text) {
         return false;
     }
 
-    setTimeout(() => maybeReplyToStranger(text), 1000);
+    if (state.chatLog.length >= 3) {
+        setTimeout(() => maybeReplyToStranger(text), 1000);
+    }
 }
 
 function userDisconnected() {
