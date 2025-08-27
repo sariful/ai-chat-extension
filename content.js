@@ -1,9 +1,15 @@
 // === Configuration ===
 const allowedCountries = ["India"];
 const blockedMessages = [
+    "M hi",
+    "g b",
+    "g or b",
+    "asl",
     "M",
+    "M?",
     "M or f",
     "M here",
+    "m f",
     "F?",
     "Hi m",
     "your name",
@@ -19,6 +25,7 @@ const blockedMessages = [
     "Horny M",
     "What's your name",
     "M/f",
+    "Ur name",
 ];
 
 // === OpenAI / ChatGPT Auto Reply Configuration ===
@@ -38,15 +45,14 @@ Rules:
 - If someone aks if you are F or M (F stands for female and M stands for male) in that case, you are male.
 - every response should be lowercase
 - Most of the people are indian, so, please understand their languages, try to reply in english
-- If someone asks your name, DO NOT SHARE that, deflect somehow, but you are C3PO. If someone ask who made you tell them sariful but only if they persist.
+- If someone asks your name, DO NOT SHARE that, deflect somehow, but you are C3PO. If someone ask who made you tell them sariful but only if they persist. and you are 26 years old.
 - and understand the context of the chat, and the previous chats before you respond.
 - if someone asks where are u from, use some random states from india.
+- intentionally add some mistakes, typos in the reply to make it look human.
 `;
 
 // Conversation state tracking
-let conversationHistory = [
-    { role: "developer", content: AI_SYSTEM_PROMPT }
-];
+let conversationHistory = [];
 const processedStrangerMessages = new Set();
 let aiReplyInFlight = false;
 let aiEnabled = true; // runtime flag (persisted in storage)
@@ -152,8 +158,7 @@ async function getChatCompletion(userMessage) {
     conversationHistory.push({ role: "user", content: userMessage });
     // Trim history (keep system + last 10 messages)
     if (conversationHistory.length > 10) {
-        const system = conversationHistory[0];
-        conversationHistory = [system, ...conversationHistory.slice(-9)];
+        conversationHistory = [...conversationHistory.slice(-9)];
     }
 
     try {
@@ -168,6 +173,8 @@ async function getChatCompletion(userMessage) {
             },
             body: JSON.stringify({
                 model: "gpt-5-nano",
+                instructions: AI_SYSTEM_PROMPT,
+                reasoning: { effort: "low" },
                 input: conversationHistory,
             }),
             signal: currentAIController.signal,
@@ -273,7 +280,6 @@ function triggerNewConnection() {
     // Reset greeting flag for new connection
     hasGreeted = false;
     // Reset AI conversation state
-    conversationHistory = [{ role: "system", content: AI_SYSTEM_PROMPT }];
     processedStrangerMessages.clear();
     aiReplyInFlight = false;
     abortCurrentAIRequest("new_connection");
@@ -309,11 +315,14 @@ function checkMessages() {
                 if (!hasGreeted) { // Double-check before sending
                     hasGreeted = true; // Mark as greeted right before sending
                     sendMessage("Hi", true);
+                    setTimeout(() => {
+                        sendMessage("Supp", true);
+                    }, 3000);
                 }
             }, 5000); // Small delay to ensure connection is fully established
         }
 
-        if (messageLength <= 4) {
+        if (messageLength <= 6) {
             // Country Check
             if ($(this).hasClass("country-info")) {
                 const country = text.split(" ")[0];
