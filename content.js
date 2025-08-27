@@ -66,7 +66,6 @@ function clearGreetingTimeouts() {
 }
 
 function newUserConnected() {
-    console.log("New user connected");
 
     clearGreetingTimeouts();
     abortCurrentAIRequest();
@@ -74,6 +73,7 @@ function newUserConnected() {
     if (state.chatLog.length > 5) {
         console.log(JSON.stringify(state, null, 2));
     }
+    console.log("New user connected --------------------------------");
 
     state.connected = true;
     state.hasGreeted = false;
@@ -95,7 +95,7 @@ function newMessageDetected($node) {
     if (isUser) {
         userMessageDetected(text);
     } else if (isYou) {
-        ownMessageDetected(text);
+        // ownMessageDetected(text);
     }
 }
 
@@ -127,13 +127,11 @@ function shouldSkipCountry(countryText) {
     return !CONFIG.allowedCountries.includes(country);
 }
 
-function ownMessageDetected(text) {
-    console.log("You:", text);
-}
+// function ownMessageDetected(text) {
+    // console.log("You:", text);
+// }
 
 function userMessageDetected(text) {
-    console.log("Stranger:", text);
-
     if (state.chatLog.length <= 6) {
         const userBlocked = shouldSkipMessage(text);
         const userNSFW = isNSFW(text);
@@ -150,8 +148,6 @@ function userMessageDetected(text) {
 }
 
 function userDisconnected() {
-    console.log("User disconnected");
-
     clearGreetingTimeouts();
     state.connected = false;
     state.hasGreeted = false;
@@ -165,10 +161,7 @@ function userDisconnected() {
 }
 
 function triggerNewConnection() {
-    console.log("Triggering new connection...");
-
     abortCurrentAIRequest();
-
     const newConnectBtn = $("#skip-btn");
     if (newConnectBtn.length) {
         newConnectBtn[0].click();
@@ -408,11 +401,10 @@ if (targetNode) {
     console.log("Chat DOM Watcher started");
 
     const agreeButton = $("#agree-btn");
-    console.log(agreeButton);
 
     setTimeout(() => {
         if (agreeButton.length) {
-            console.log("Agree button clicked");
+            console.info("Agree button clicked");
             agreeButton[0].click();
         }
     }, 1000);
