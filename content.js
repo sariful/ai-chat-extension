@@ -294,7 +294,7 @@ async function getChatCompletion() {
                 model: "gpt-5-nano",
                 instructions: CONFIG.aiSystemPrompt,
                 reasoning: { effort: "low" },
-                input: state.chatLog,
+                input: state.chatLog.slice(-15),
             }),
             signal: state.currentAIController.signal,
         });
