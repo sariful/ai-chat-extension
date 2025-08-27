@@ -137,6 +137,7 @@ function userMessageDetected(text) {
     if (state.chatLog.length <= 6) {
         const userBlocked = shouldSkipMessage(text);
         const userNSFW = isNSFW(text);
+        userNSFW && console.log("NSFW content detected:", text);
         if (userBlocked || (userNSFW && state.aiEnabled)) {
             triggerNewConnection();
             return false;
