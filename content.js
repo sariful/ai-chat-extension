@@ -1,133 +1,193 @@
-// === Configuration ===
-const allowedCountries = ["India"];
-const blockedMessages = [
-    "M hi",
-    "g b",
-    "g or b",
-    "asl",
-    "M",
-    "M?",
-    "M or f",
-    "M here",
-    "m f",
-    "F?",
-    "Hi m",
-    "your name",
-    "ur name",
-    "name?",
-    "M bi",
-    "I'm boy",
-    "Name",
-    "hey m",
-    "Age",
-    "Age?",
-    "What's ur name?",
-    "Horny M",
-    "What's your name",
-    "M/f",
-    "Ur name",
-];
+const CONFIG = {
+    allowedCountries: ["India"],
+    blockedMessages: [
+        "M hi", "g b", "g or b", "asl", "M", "M?", "M or f", "M here",
+        "m f", "F?", "Hi m", "your name", "ur name", "name?", "M bi",
+        "I'm boy", "Name", "hey m", "Age", "Age?", "What's ur name?",
+        "Horny M", "What's your name", "M/f", "Ur name"
+    ],
+    aiSystemPrompt: `You are a friendly, concise chat companion, only chat, in a random text chat.
+        Rules:
+        - be sarcastic, humorous, curious. gen-z.
+        - Keep each reply as little as possible, under 1-5 words and maximum 25 characters.
+        - make yourself look as human as possible.
+        - If asked for personal info, deflect kindly.
+        - Avoid explicit content.
+        - If someone asks if you are AI or bot, deflect politely and divert.
+        - You are a human.
+        - intentionally add some mistakes, typos in the reply to make it look human.
+        - If someone asks if you are F or M (F stands for female and M stands for male) in that case, you are male.
+        - every response should be lowercase
+        - Most of the people are indian, so, please understand their languages, try to reply in english
+        - If someone asks your name, DO NOT SHARE that, deflect somehow, but you are C3PO. If someone ask who made you tell them sariful but only if they persist. and you are 26 years old.
+        - Understand the context of the chat, and the previous chats before you respond.
+        - if someone asks where are u from, use some random states from india.
+    `,
+    aiModel: "gpt-5-nano"
+};
 
-// === OpenAI / ChatGPT Auto Reply Configuration ===
-// The API key is NOT stored in code. On first run, user is prompted and key saved to chrome.storage.local.
-// You can reset by running: chrome.storage.local.remove('OPENAI_API_KEY') from DevTools console.
-const AI_SYSTEM_PROMPT = `You are a friendly, concise chat companion, only chat, in a random text chat.
-Rules:
-- be funny, sarcastic, humorous, witty.
-- Keep each reply as little as possible, under 1-5 words and maximum 25 characters strictly. unless you have something to explain in length, then keep it maximum 30.
-- make yourself look as human as possible.
-- Since this is a chat, people will use short form like wby, wyd, wdym or others, please understand that.
-- You can also use short forms make the response shorter.
-- If asked for personal info, deflect kindly.
-- Avoid explicit content.
-- If someone asks if you are AI or bot, deflect politely and divert.
-- You are a human.
-- If someone aks if you are F or M (F stands for female and M stands for male) in that case, you are male.
-- every response should be lowercase
-- Most of the people are indian, so, please understand their languages, try to reply in english
-- If someone asks your name, DO NOT SHARE that, deflect somehow, but you are C3PO. If someone ask who made you tell them sariful but only if they persist. and you are 26 years old.
-- and understand the context of the chat, and the previous chats before you respond.
-- if someone asks where are u from, use some random states from india.
-- intentionally add some mistakes, typos in the reply to make it look human.
-`;
+let state = {
+    connected: false,
+    hasGreeted: false,
+    chatLog: [],
+    aiEnabled: true,
+    aiReplyInFlight: false,
+    currentAIController: null,
+    greetingTimeouts: [],
+};
 
-// Conversation state tracking
-let conversationHistory = [];
-const processedStrangerMessages = new Set();
-let aiReplyInFlight = false;
-let aiEnabled = true; // runtime flag (persisted in storage)
-// Track current AI fetch so we can abort if the stranger disconnects / new connection
-let currentAIController = null;
-
-function abortCurrentAIRequest(reason = "aborted") {
-    try {
-        if (currentAIController) {
-            currentAIController.abort();
-            currentAIController = null;
-            console.log("[AI] Current request aborted (" + reason + ")");
-        }
-    } catch (e) {
-        console.warn("Failed to abort AI request", e);
-    }
-    aiReplyInFlight = false;
-    stopTypingIndicator();
+function clearGreetingTimeouts() {
+    state.greetingTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+    state.greetingTimeouts = [];
 }
 
-// === AI Enable/Disable Toggle ===
-function initAIToggleUI() {
-    try {
-        // Avoid duplicates
-        if (document.getElementById("ai-toggle-btn")) return;
+function newUserConnected() {
+    console.log("New user connected");
 
-        // Load persisted state first
-        chrome.storage.local.get(["AI_ENABLED"], (res) => {
-            if (typeof res.AI_ENABLED === "boolean") {
-                aiEnabled = res.AI_ENABLED;
-            }
-            createOrUpdateButton();
-        });
+    clearGreetingTimeouts();
 
-        function createOrUpdateButton() {
-            let btn = document.getElementById("ai-toggle-btn");
-            if (!btn) {
-                btn = document.createElement("button");
-                btn.id = "ai-toggle-btn";
-                btn.type = "button";
-                document.body.appendChild(btn);
-                btn.addEventListener("click", () => {
-                    aiEnabled = !aiEnabled;
-                    chrome.storage.local.set({ AI_ENABLED: aiEnabled });
-                    updateButtonAppearance(btn);
-                });
-            }
-            updateButtonAppearance(btn);
-        }
+    state.connected = true;
+    state.hasGreeted = false;
+    state.chatLog = [];
 
-        function updateButtonAppearance(btn) {
-            btn.textContent = aiEnabled ? "AI: ON" : "AI: OFF";
-            btn.style.cssText = `
-                position:fixed;top:10px;right:10px;z-index:2147483647;cursor:pointer;
-                padding:6px 10px;border:1px solid #222;border-radius:6px;font:12px/1.2 sans-serif;
-                background:${aiEnabled ? '#16a34a' : '#dc2626'};color:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);
-                opacity:0.85;transition:all .2s ease;letter-spacing:.5px;
-            `;
-            btn.onmouseenter = () => { btn.style.opacity = '1'; };
-            btn.onmouseleave = () => { btn.style.opacity = '0.85'; };
-            btn.title = aiEnabled ? "Click to disable AI auto-replies" : "Click to enable AI auto-replies";
-        }
-    } catch (e) {
-        console.warn("Failed to init AI toggle UI", e);
+    greetNewUser();
+}
+
+function newMessageDetected($node) {
+    const text = $node.text().trim().replace(/^(stranger: |you: )/i, "").trim();
+    const isUser = $node.find(".strange").length > 0;
+    const isYou = $node.find(".you").length > 0;
+
+    state.chatLog.push({
+        role: isUser ? "user" : "assistant",
+        content: text
+    });
+
+    if (isUser) {
+        userMessageDetected(text);
+    } else if (isYou) {
+        ownMessageDetected(text);
     }
 }
 
-// Initialize toggle ASAP (DOM may already be ready in MV3)
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initAIToggleUI);
-} else {
-    initAIToggleUI();
+function shouldSkipMessage(text) {
+    const normalizedText = text.toLowerCase().trim();
+
+
+    if (CONFIG.blockedMessages.some(msg => normalizedText === msg.toLowerCase())) {
+        console.log(`Blocked message (exact): ${normalizedText}`);
+        return true;
+    }
+
+    if (/^m\s*\d{1,3}$/.test(normalizedText)) {
+        console.log(`Blocked message (pattern): ${normalizedText}`);
+        return true;
+    }
+
+    return false;
 }
 
-// Fetch / ensure API key
+function shouldSkipCountry(countryText) {
+    const country = countryText.split(" ")[0];
+    return !CONFIG.allowedCountries.includes(country);
+}
+
+function ownMessageDetected(text) {
+    console.log("You:", text);
+}
+
+function userMessageDetected(text) {
+    console.log("Stranger:", text);
+
+    const userBlocked = shouldSkipMessage(text);
+    if (userBlocked) {
+        triggerNewConnection()
+        return false;
+    }
+
+    setTimeout(() => maybeReplyToStranger(text), 1000);
+}
+
+function userDisconnected() {
+    console.log("User disconnected");
+
+    clearGreetingTimeouts();
+    state.connected = false;
+    state.hasGreeted = false;
+
+    console.log("Final chat log:", JSON.stringify(state, null, 2));
+    abortCurrentAIRequest();
+    if (state.chatLog.length <= 12) {
+        triggerNewConnection();
+    }
+}
+
+function triggerNewConnection() {
+    console.log("Triggering new connection...");
+
+    const newConnectBtn = $("#skip-btn");
+    if (newConnectBtn.length) {
+        newConnectBtn[0].click();
+        newConnectBtn[0].click();
+    }
+}
+
+
+function sendMessage(message, sendNow = false) {
+    const messageInput = $("#message-input");
+    if (messageInput.length) {
+        messageInput.val(message);
+        const sendButton = $("#send-btn");
+        if (sendNow && sendButton.length) {
+            sendButton[0].click();
+        }
+    }
+}
+
+function greetNewUser() {
+    if (!state.hasGreeted) {
+        state.hasGreeted = true;
+        const mySentMessages = state.chatLog.filter(msg => msg.role === "user");
+        if (mySentMessages.length == 0) {
+            state.greetingTimeouts.push(setTimeout(() => sendMessage("Hi", true), 3000));
+            state.greetingTimeouts.push(setTimeout(() => sendMessage("Supp", true), 8000));
+        }
+    }
+}
+
+async function maybeReplyToStranger(strangerText) {
+    if (state.aiReplyInFlight || !state.aiEnabled) return;
+    state.aiReplyInFlight = true;
+    const reply = await getChatCompletion(strangerText);
+    if (reply && state.aiEnabled) {
+        sendMessage(reply, true);
+    }
+    state.aiReplyInFlight = false;
+}
+
+function handleNewNode($node) {
+    const text = $node.text().trim();
+
+    if ($node.hasClass("message-status")) {
+        if (text.includes("You are now talking")) {
+            newUserConnected();
+        } else if (text.includes("Stranger has disconnected")) {
+            userDisconnected();
+        }
+    }
+
+    if ($node.hasClass("country-info") && state.chatLog.length <= 6) {
+        if (shouldSkipCountry(text)) {
+            console.log("Blocked country:", text);
+            triggerNewConnection();
+        }
+    }
+
+    if ($node.hasClass("message")) {
+        newMessageDetected($node);
+    }
+}
+
 async function ensureApiKey() {
     return new Promise((resolve) => {
         chrome.storage.local.get(["OPENAI_API_KEY"], async (res) => {
@@ -143,7 +203,73 @@ async function ensureApiKey() {
     });
 }
 
-async function getChatCompletion(userMessage) {
+
+function abortCurrentAIRequest(reason = "aborted") {
+    try {
+        if (state.currentAIController) {
+            state.currentAIController.abort();
+            state.currentAIController = null;
+            console.log("[AI] Current request aborted (" + reason + ")");
+        }
+    } catch (e) {
+        console.warn("Failed to abort AI request", e);
+    }
+    state.aiReplyInFlight = false;
+}
+
+function initAIToggleUI() {
+    try {
+        // Avoid duplicates
+        if (document.getElementById("ai-toggle-btn")) return;
+
+        // Load persisted state first
+        chrome.storage.local.get(["AI_ENABLED"], (res) => {
+            if (typeof res.AI_ENABLED === "boolean") {
+                state.aiEnabled = res.AI_ENABLED;
+            }
+            createOrUpdateButton();
+        });
+
+        function createOrUpdateButton() {
+            let btn = document.getElementById("ai-toggle-btn");
+            if (!btn) {
+                btn = document.createElement("button");
+                btn.id = "ai-toggle-btn";
+                btn.type = "button";
+                document.body.appendChild(btn);
+                btn.addEventListener("click", () => {
+                    state.aiEnabled = !state.aiEnabled;
+                    chrome.storage.local.set({ AI_ENABLED: state.aiEnabled });
+                    updateButtonAppearance(btn);
+                });
+            }
+            updateButtonAppearance(btn);
+        }
+
+        function updateButtonAppearance(btn) {
+            btn.textContent = state.aiEnabled ? "AI: ON" : "AI: OFF";
+            btn.style.cssText = `
+                position:fixed;top:10px;right:10px;z-index:2147483647;cursor:pointer;
+                padding:6px 10px;border:1px solid #222;border-radius:6px;font:12px/1.2 sans-serif;
+                background:${state.aiEnabled ? '#16a34a' : '#dc2626'};color:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);
+                opacity:0.85;transition:all .2s ease;letter-spacing:.5px;
+            `;
+            btn.onmouseenter = () => { btn.style.opacity = '1'; };
+            btn.onmouseleave = () => { btn.style.opacity = '0.85'; };
+            btn.title = state.aiEnabled ? "Click to disable AI auto-replies" : "Click to enable AI auto-replies";
+        }
+    } catch (e) {
+        console.warn("Failed to init AI toggle UI", e);
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAIToggleUI);
+} else {
+    initAIToggleUI();
+}
+
+async function getChatCompletion() {
     const apiKey = await ensureApiKey();
     if (!apiKey) {
         console.warn("No OpenAI API key set; skipping AI reply.");
@@ -151,20 +277,13 @@ async function getChatCompletion(userMessage) {
     }
 
     // If a previous request is still in flight, abort it before starting a new one
-    if (currentAIController) {
+    if (state.currentAIController) {
         abortCurrentAIRequest("superseded");
     }
 
-    conversationHistory.push({ role: "user", content: userMessage });
-    // Trim history (keep system + last 10 messages)
-    if (conversationHistory.length > 10) {
-        conversationHistory = [...conversationHistory.slice(-9)];
-    }
 
     try {
-        // --- Typing indicator start ---
-        startTypingIndicator();
-        currentAIController = new AbortController();
+        state.currentAIController = new AbortController();
         const resp = await fetch("https://api.openai.com/v1/responses", {
             method: "POST",
             headers: {
@@ -173,16 +292,15 @@ async function getChatCompletion(userMessage) {
             },
             body: JSON.stringify({
                 model: "gpt-5-nano",
-                instructions: AI_SYSTEM_PROMPT,
+                instructions: CONFIG.aiSystemPrompt,
                 reasoning: { effort: "low" },
-                input: conversationHistory,
+                input: state.chatLog,
             }),
-            signal: currentAIController.signal,
+            signal: state.currentAIController.signal,
         });
         if (!resp.ok) {
             const txt = await resp.text();
             console.error("OpenAI error", resp.status, txt);
-            stopTypingIndicator();
             return null;
         }
         const data = await resp.json();
@@ -197,10 +315,6 @@ async function getChatCompletion(userMessage) {
             }
         }
 
-        if (aiMsg) {
-            conversationHistory.push({ role: "assistant", content: aiMsg });
-        }
-        stopTypingIndicator();
         return aiMsg || null;
     } catch (e) {
         if (e.name === 'AbortError') {
@@ -208,213 +322,39 @@ async function getChatCompletion(userMessage) {
         } else {
             console.error("Fetch to OpenAI failed", e);
         }
-        stopTypingIndicator();
         return null;
     } finally {
-        currentAIController = null; // Clear controller when done/failed/aborted
+        state.currentAIController = null; // Clear controller when done/failed/aborted
     }
 }
 
-// === Typing Indicator Helpers ===
-let typingIndicatorInterval = null;
-function startTypingIndicator() {
-    try {
-        if (typingIndicatorInterval) return; // already running
-        const input = $("#message-input");
-        if (!input.length) return;
-        let dots = "";
-        input.data("__origVal", input.val());
-        typingIndicatorInterval = setInterval(() => {
-            dots = dots.length < 3 ? dots + "." : "";
-            input.val("typing" + dots);
-            // Trigger events so the site (if it listens) treats it like real typing
-            input.trigger("keydown").trigger("keyup");
-        }, 550);
-    } catch (e) {
-        console.warn("Failed to start typing indicator", e);
-    }
-}
 
-function stopTypingIndicator(preserveText = false) {
-    try {
-        if (typingIndicatorInterval) {
-            clearInterval(typingIndicatorInterval);
-            typingIndicatorInterval = null;
-        }
-        const input = $("#message-input");
-        if (!input.length) return;
-        if (!preserveText) {
-            input.val("");
-        }
-        input.removeData("__origVal");
-        input.trigger("input").trigger("change").trigger("keypress");
-    } catch (e) {
-        console.warn("Failed to stop typing indicator", e);
-    }
-}
-
-async function maybeReplyToStranger(strangerText) {
-    if (aiReplyInFlight) return; // avoid overlapping
-    if (!aiEnabled) return; // AI disabled
-    aiReplyInFlight = true;
-    const reply = await getChatCompletion(strangerText);
-    if (reply && aiEnabled) { // re-check enabled before sending
-        // Small natural delay 1.5-3.5s
-        sendMessage(reply, true);
-        aiReplyInFlight = false;
-    } else {
-        aiReplyInFlight = false;
-    }
-}
-
-// Flag to track if we've already greeted in the current conversation
-let hasGreeted = false;
-
-function triggerNewConnection() {
-    const newConnectBtn = $("#skip-btn");
-    console.log("Triggering new connection...");
-    if (newConnectBtn.length) {
-        newConnectBtn[0].click(); // Trigger native click
-        newConnectBtn[0].click(); // Trigger native click
-    }
-    // Reset greeting flag for new connection
-    hasGreeted = false;
-    // Reset AI conversation state
-    processedStrangerMessages.clear();
-    aiReplyInFlight = false;
-    abortCurrentAIRequest("new_connection");
-}
-
-function sendMessage(message, sendNow = false) {
-    console.log("new connected, sending hi");
-
-    const messageInput = $("#message-input");
-    if (messageInput.length) {
-        messageInput.val(message);
-        const sendButton = $("#send-btn");
-
-        if (sendNow && sendButton.length) {
-            sendButton[0].click(); // Trigger native click
-        }
-    }
-}
-
-function checkMessages() {
-    const messages = $(
-        "#messages .message, #messages .message-status, #messages .country-info"
-    );
-    const messageLength = $("#messages .message").length;
-
-    messages.each(function () {
-        const text = $(this).text().trim();
-
-        // New Connection Detection - Send "Hi" automatically (only once)
-        if ($(this).hasClass("message-status") && text.includes("You are now talking to a random stranger") && !hasGreeted) {
-            console.log("New connection detected, sending Hi...");
-            setTimeout(() => {
-                if (!hasGreeted) { // Double-check before sending
-                    hasGreeted = true; // Mark as greeted right before sending
-                    sendMessage("Hi", true);
-                    setTimeout(() => {
-                        sendMessage("Supp", true);
-                    }, 3000);
-                }
-            }, 5000); // Small delay to ensure connection is fully established
-        }
-
-        if (messageLength <= 6) {
-            // Country Check
-            if ($(this).hasClass("country-info")) {
-                const country = text.split(" ")[0];
-                if (!allowedCountries.includes(country)) {
-                    console.log(`Blocked country: ${country}`);
-                    triggerNewConnection();
-                    return false; // Stop .each()
-                }
-            }
-        }
-
-        // Stranger Message Check
-        if ($(this).hasClass("message")) {
-            const originalText = text;
-            const normalizedText = originalText
-                .replace(/^Stranger:\s*/i, "")
-                .toLowerCase()
-                .trim();
-
-            if (messageLength <= 4) {
-                // Block exact matches
-                const blockedCondition = blockedMessages.some((blockedMessage) => {
-                    return normalizedText === blockedMessage.toLowerCase().trim();
-                });
-                if (blockedCondition) {
-                    console.log(`Blocked message: ${normalizedText}`);
-                    triggerNewConnection();
-                    return false;
-                }
-                // Block 'M' followed by optional space and numbers (e.g., 'M20', 'M 20')
-                if (/^m\s*\d{1,3}$/.test(normalizedText)) {
-                    console.log(`Blocked message (pattern): ${normalizedText}`);
-                    triggerNewConnection();
-                    return false;
-                }
-            }
-
-            // Capture manual user messages into history so AI has context
-            if (/^You:/i.test(originalText)) {
-                const youMsg = originalText.replace(/^You:\s*/i, "").trim();
-                if (youMsg) {
-                    conversationHistory.push({ role: "assistant", content: youMsg });
-                }
-            }
-            // AI Auto Reply (only for new Stranger messages not yet processed)
-            if (/^Stranger:/i.test(originalText) && !processedStrangerMessages.has(originalText)) {
-                processedStrangerMessages.add(originalText);
-                const cleanStranger = originalText.replace(/^Stranger:\s*/i, "").trim();
-                if (cleanStranger.length > 0) {
-                    setTimeout(() => {
-                        maybeReplyToStranger(cleanStranger);
-                    }, 1000);
-                }
-            }
-        }
-
-        if (messageLength <= 10) {
-            // Disconnected Message
-            if (text.includes("Stranger has disconnected")) {
-                console.log(`Stranger disconnected detected. with ${messageLength} messages present.`);
-                hasGreeted = false; // Reset greeting flag for next connection
-                triggerNewConnection();
-                return false;
-            }
-        }
-    });
-}
-
-// === MutationObserver ===
-const targetNode = $("#message-area")[0];
+const targetNode = $("#messages")[0];
 if (targetNode) {
-    const observer = new MutationObserver(() => {
-        checkMessages();
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    handleNewNode($(node));
+                }
+            });
+        });
     });
 
     observer.observe(targetNode, {
         childList: true,
-        subtree: true,
-        characterData: true,
+        subtree: true
     });
 
-    console.log("DOM Watcher started with jQuery");
+    console.log("Chat DOM Watcher started");
 
-    // 4. Auto agree
     const agreeButton = $("#agree-btn");
     console.log(agreeButton);
 
     setTimeout(() => {
         if (agreeButton.length) {
-            console.log("Auto Agreed");
-
-            agreeButton[0].click(); // Trigger native click
+            console.log("Agree button clicked");
+            agreeButton[0].click();
         }
     }, 1000);
 }
