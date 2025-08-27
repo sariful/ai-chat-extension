@@ -134,11 +134,13 @@ function ownMessageDetected(text) {
 function userMessageDetected(text) {
     console.log("Stranger:", text);
 
-    const userBlocked = shouldSkipMessage(text);
-    const userNSFW = isNSFW(text);
-    if (userBlocked || userNSFW) {
-        triggerNewConnection();
-        return false;
+    if (state.chatLog.length <= 6) {
+        const userBlocked = shouldSkipMessage(text);
+        const userNSFW = isNSFW(text);
+        if (userBlocked || (userNSFW && state.aiEnabled)) {
+            triggerNewConnection();
+            return false;
+        }
     }
 
     if (state.chatLog.length >= 3) {
@@ -359,12 +361,14 @@ async function getChatCompletion() {
         if (data.output) {
             if (typeof data.output == "object") {
                 if (Array.isArray(data.output)) {
-                    if (data.output[0].type === "tool_call" && data.output[0].name === "triggerNewConnection") {
-                        // Call your function here
-                        triggerNewConnection();
-                    }
-
                     aiMsg = data.output[data.output.length - 1].content[0].text;
+
+                    if (aiMsg == "triggerNewConnection") {
+                        aiMsg = "I'm sorry, but I can't assist with that.";
+                        setTimeout(() => {
+                            triggerNewConnection();
+                        }, 3000);
+                    }
                 }
             }
         }
