@@ -6,6 +6,10 @@ const CONFIG = {
         "I'm boy", "Name", "hey m", "Age", "Age?", "What's ur name?",
         "Horny M", "What's your name", "M/f", "Ur name", "Horny F?"
     ],
+    nsfwKeywords: [
+        "horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "fuck",
+        "suck", "anal", "blowjob", "tits"
+    ],
     aiSystemPrompt: `You are a casual, human-like chat companion in a random chatroom.
 
 ### Rules:
@@ -35,6 +39,16 @@ const CONFIG = {
 `,
     aiModel: "gpt-5-nano"
 };
+
+const tools = [
+    {
+        type: "function",
+        function: {
+            name: "triggerNewConnection",
+            description: "Disconnects and starts a new chat if conversation becomes explicit or NSFW."
+        }
+    }
+];
 
 let state = {
     connected: false,
@@ -85,6 +99,12 @@ function newMessageDetected($node) {
     }
 }
 
+function isNSFW(text) {
+    const keywords = CONFIG.nsfwKeywords.map(k => k.toLowerCase());
+    const normalizedText = text.toLowerCase();
+    return keywords.some(keyword => normalizedText.includes(keyword));
+}
+
 function shouldSkipMessage(text) {
     const normalizedText = text.toLowerCase().trim();
 
@@ -115,8 +135,9 @@ function userMessageDetected(text) {
     console.log("Stranger:", text);
 
     const userBlocked = shouldSkipMessage(text);
-    if (userBlocked) {
-        triggerNewConnection()
+    const userNSFW = isNSFW(text);
+    if (userBlocked || userNSFW) {
+        triggerNewConnection();
         return false;
     }
 
@@ -314,8 +335,16 @@ async function getChatCompletion() {
                 model: "gpt-5-nano",
                 instructions: CONFIG.aiSystemPrompt,
                 reasoning: { effort: "medium" },
-                input: state.chatLog.slice(-15),
+                input: [
+                    {
+                        role: "system",
+                        content: "You are a chat companion. If any message (from either user or stranger) is explicit, sexual, or leans toward sexting, do not reply. Instead, call the triggerNewConnection function."
+                    },
+                    ...state.chatLog.slice(-15),
+                ],
             }),
+            tools,
+            tool_choice: "auto",
             signal: state.currentAIController.signal,
         });
         if (!resp.ok) {
@@ -330,6 +359,11 @@ async function getChatCompletion() {
         if (data.output) {
             if (typeof data.output == "object") {
                 if (Array.isArray(data.output)) {
+                    if (data.output[0].type === "tool_call" && data.output[0].name === "triggerNewConnection") {
+                        // Call your function here
+                        triggerNewConnection();
+                    }
+
                     aiMsg = data.output[data.output.length - 1].content[0].text;
                 }
             }
