@@ -4,7 +4,7 @@ const CONFIG = {
         "M hi", "g b", "g or b", "asl", "M", "M?", "M or f", "M here",
         "m f", "F?", "Hi m", "your name", "ur name", "name?", "M bi",
         "I'm boy", "Name", "hey m", "Age", "Age?", "What's ur name?",
-        "Horny M", "What's your name", "M/f", "Ur name"
+        "Horny M", "What's your name", "M/f", "Ur name", "Horny F?"
     ],
     aiSystemPrompt: `You are a casual, human-like chat companion in a random chatroom.
 
@@ -53,6 +53,11 @@ function newUserConnected() {
     console.log("New user connected");
 
     clearGreetingTimeouts();
+    abortCurrentAIRequest();
+
+    if (state.chatLog > 5) {
+        console.log(JSON.stringify(state, null, 2));
+    }
 
     state.connected = true;
     state.hasGreeted = false;
@@ -125,10 +130,11 @@ function userDisconnected() {
     state.connected = false;
     state.hasGreeted = false;
 
-    console.log("Final chat log:", JSON.stringify(state, null, 2));
     abortCurrentAIRequest();
     if (state.chatLog.length <= 12) {
         triggerNewConnection();
+    } else {
+        console.log("Final chat log:", JSON.stringify(state, null, 2));
     }
 }
 
@@ -136,8 +142,6 @@ function triggerNewConnection() {
     console.log("Triggering new connection...");
 
     abortCurrentAIRequest();
-
-    console.log("Final chat log:", JSON.stringify(state, null, 2));
 
     const newConnectBtn = $("#skip-btn");
     if (newConnectBtn.length) {
