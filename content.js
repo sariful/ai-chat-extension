@@ -30,6 +30,7 @@ const CONFIG = {
 - Keep responses varied, never repeat same sentences.
 - Use lowercase unless proper nouns need capitalization.
 - Don't use special characters in the reply.
+- If you sent a message once, don't send it again.
 
 ### Behavior:
 - If the conversation is short, dry, or rude — keep it brief or drop it.
@@ -158,6 +159,8 @@ function userDisconnected() {
 
     abortCurrentAIRequest();
     if (state.chatLog.length <= 12) {
+        console.log("user disconnected, chat too short, skipping.");
+
         triggerNewConnection();
     } else {
         console.log("Final chat log:", JSON.stringify(state, null, 2));
@@ -203,16 +206,16 @@ async function maybeReplyToStranger(strangerText) {
     sendTypingIndicator(true);
 
     const timer_start = Date.now();
-    const reply = await getChatCompletionOllama(strangerText);
+    const reply = await getChatCompletionOpenAi(strangerText);
     if (reply && state.aiEnabled) {
         const timer_end = Date.now();
         const elapsed_time = timer_end - timer_start;
-        const natural_delay = reply.length * 200;
+        const logical = reply.length * 200;
 
-        const actual_delay = Math.max(natural_delay, elapsed_time);
+        const actual_delay = Math.max(logical, elapsed_time);
 
         setTimeout(() => {
-            console.log(`AI message: ${reply}.`, `Delay: ${actual_delay}ms`);
+            console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Actual: ${actual_delay / 1000}s`);
             sendMessage(reply, true);
             sendTypingIndicator(false);
         }, actual_delay);
