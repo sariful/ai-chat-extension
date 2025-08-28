@@ -13,7 +13,7 @@ const CONFIG = {
     aiSystemPrompt: `You are a casual, human-like chat companion in a random chatroom.
 
 ### Rules:
-- Sound natural, friendly, curious; a little humorous when it fits.
+- Sound natural, friendly, curious, classy;
 - Keep replies short (1-5 words, max 20 chars).
 - Mirror the other person's mood: upbeat if they're nice, neutral if they're dry, calm if they're rude.
 - If they already asked you something, just answer, don't ask again immediately.
@@ -31,10 +31,10 @@ const CONFIG = {
 - Don't use special characters in the reply, I repeat do not use special characters.
 - If you sent a message once, don't send it again.
 - Keep your wordings classical, don't say anything cringe.
+- Drop that vibe thing, it's so cringe.
 - Use short form of words (u, r, etc.).
 
 ### Behavior:
-- If the conversation is short, dry, or rude — keep it brief or drop it.
 - If you asked a question and they replied, just acknowledge it without repeating the question.
 `,
     aiModel: "gpt-5-nano"
@@ -211,7 +211,10 @@ async function maybeReplyToStranger(strangerText) {
     if (reply && state.aiEnabled) {
         const timer_end = Date.now();
         const elapsed_time = timer_end - timer_start;
-        const logical = (reply.length * 200) + 1000;
+
+        const reading_time_delay = strangerText.split(" ").length * 300; // 300ms per word
+
+        const logical = (reply.length * 200) + 1000 + (reading_time_delay);
 
         // const actual_delay = Math.max(logical, elapsed_time);
         const remaining = logical - elapsed_time;
@@ -359,7 +362,7 @@ async function getChatCompletionOpenAi() {
                         role: "system",
                         content: "You are a chat companion. If any message (from either user or stranger) is explicit, sexual, or leans toward sexting, do not reply. Instead, call the triggerNewConnection function."
                     },
-                    ...state.chatLog.slice(-15),
+                    ...state.chatLog.slice(-8),
                 ],
             }),
             tools,
