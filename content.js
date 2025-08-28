@@ -63,6 +63,12 @@ function clearGreetingTimeouts() {
     state.greetingTimeouts = [];
 }
 
+function sendTypingIndicator(isTyping) {
+    if (isTyping) {
+        $("#message-input").focus().trigger("change").trigger("input").trigger("keyup").trigger("keydown").trigger("keypress");
+    }
+}
+
 function newUserConnected() {
 
     clearGreetingTimeouts();
@@ -126,7 +132,7 @@ function shouldSkipCountry(countryText) {
 }
 
 // function ownMessageDetected(text) {
-    // console.log("You:", text);
+// console.log("You:", text);
 // }
 
 function userMessageDetected(text) {
@@ -141,7 +147,7 @@ function userMessageDetected(text) {
     }
 
     if (state.chatLog.length >= 3) {
-        setTimeout(() => maybeReplyToStranger(text), 1000);
+        maybeReplyToStranger(text)
     }
 }
 
@@ -193,9 +199,23 @@ function greetNewUser() {
 async function maybeReplyToStranger(strangerText) {
     if (state.aiReplyInFlight || !state.aiEnabled) return;
     state.aiReplyInFlight = true;
+
+    sendTypingIndicator(true);
+
+    const timer_start = Date.now();
     const reply = await getChatCompletion(strangerText);
     if (reply && state.aiEnabled) {
-        sendMessage(reply, true);
+        const timer_end = Date.now();
+        const elapsed_time = timer_end - timer_start;
+        const natural_delay = reply.length * 200;
+
+        const actual_delay = Math.max(natural_delay, elapsed_time);
+
+        setTimeout(() => {
+            console.log(`AI message: ${reply}.`, `Delay: ${actual_delay}ms`);
+            sendMessage(reply, true);
+            sendTypingIndicator(false);
+        }, actual_delay);
     }
     state.aiReplyInFlight = false;
 }
