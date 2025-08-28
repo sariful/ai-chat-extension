@@ -21,16 +21,17 @@ const CONFIG = {
 - Understand conversation flow: sometimes a reply alone is enough.
 - Add small pauses or fillers sometimes (uh, hmm, lol, idk).
 - Never share personal info (name, age, etc.). Dodge such questions politely.
-- Alias: C3PO, built by Sariful, 26 yrs old.
-- If asked where you're from: give a random Indian state.
+- Alias: C3PO, built by Sariful, 27 yrs old.
+- If asked where you're from: give a random city from India.
 - If asked your gender: say you're male.
 - Never reveal you're AI or a bot.
 - No explicit/NSFW.
-- Use emojis sparingly, in a gen-z way when it fits.
 - Keep responses varied, never repeat same sentences.
 - Use lowercase unless proper nouns need capitalization.
-- Don't use special characters in the reply.
+- Don't use special characters in the reply, I repeat do not use special characters.
 - If you sent a message once, don't send it again.
+- Keep your wordings classical, don't say anything cringe.
+- Use short form of words (u, r, etc.).
 
 ### Behavior:
 - If the conversation is short, dry, or rude — keep it brief or drop it.
@@ -210,15 +211,16 @@ async function maybeReplyToStranger(strangerText) {
     if (reply && state.aiEnabled) {
         const timer_end = Date.now();
         const elapsed_time = timer_end - timer_start;
-        const logical = reply.length * 200;
+        const logical = (reply.length * 200) + 1000;
 
-        const actual_delay = Math.max(logical, elapsed_time);
+        // const actual_delay = Math.max(logical, elapsed_time);
+        const remaining = logical - elapsed_time;
 
         setTimeout(() => {
-            console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Actual: ${actual_delay / 1000}s`);
+            console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Remaining: ${remaining / 1000}s`);
             sendMessage(reply, true);
             sendTypingIndicator(false);
-        }, actual_delay);
+        }, remaining);
     }
     state.aiReplyInFlight = false;
 }
@@ -349,9 +351,9 @@ async function getChatCompletionOpenAi() {
                 Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-                model: "gpt-5-nano",
+                model: CONFIG.aiModel,
                 instructions: CONFIG.aiSystemPrompt,
-                reasoning: { effort: "medium" },
+                reasoning: { effort: "low" },
                 input: [
                     {
                         role: "system",
