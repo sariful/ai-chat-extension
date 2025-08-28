@@ -203,7 +203,7 @@ async function maybeReplyToStranger(strangerText) {
     sendTypingIndicator(true);
 
     const timer_start = Date.now();
-    const reply = await getChatCompletion(strangerText);
+    const reply = await getChatCompletionOllama(strangerText);
     if (reply && state.aiEnabled) {
         const timer_end = Date.now();
         const elapsed_time = timer_end - timer_start;
@@ -324,7 +324,7 @@ if (document.readyState === 'loading') {
     initAIToggleUI();
 }
 
-async function getChatCompletion() {
+async function getChatCompletionOpenAi() {
     const apiKey = await ensureApiKey();
     if (!apiKey) {
         console.warn("No OpenAI API key set; skipping AI reply.");
@@ -396,6 +396,61 @@ async function getChatCompletion() {
     } finally {
         state.currentAIController = null; // Clear controller when done/failed/aborted
     }
+}
+
+async function getChatCompletionOllama() {
+    // Use background service worker to avoid extension blocking of localhost fetch.
+    if (state.currentAIController) {
+        abortCurrentAIRequest("superseded");
+    }
+
+    const requestId = `ollama-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    let aborted = false;
+
+    state.currentAIController = { abort: () => { aborted = true; chrome.runtime.sendMessage({ type: 'ABORT_OLLAMA', requestId }); } };
+
+    const payload = {
+        url: 'http://localhost:11434/api/chat',
+        body: {
+            model: 'deepseek-r1:1.5b',
+            messages: [
+                { role: 'system', content: CONFIG.aiSystemPrompt },
+                ...state.chatLog.slice(-15),
+            ],
+            stream: false
+        }
+    };
+
+    const response = await new Promise(resolve => {
+        try {
+            chrome.runtime.sendMessage({ type: 'OLLAMA_CHAT', requestId, payload }, (res) => {
+                if (chrome.runtime.lastError) {
+                    console.error('Message error', chrome.runtime.lastError.message);
+                    return resolve({ ok: false, error: chrome.runtime.lastError.message });
+                }
+                resolve(res || { ok: false, error: 'no-response' });
+            });
+        } catch (e) {
+            resolve({ ok: false, error: e.message });
+        }
+    });
+
+    state.currentAIController = null;
+
+    if (aborted) {
+        console.log('[AI] Ollama request aborted');
+        return null;
+    }
+    if (!response.ok) {
+        console.error('Ollama error', response.status, response.error || response.raw);
+        return null;
+    }
+
+    const data = response.data || {};
+    let mainMessage = data?.message?.content ?? 'No content found';
+    // Remove <think>...</think> tags (and their content if any)
+    mainMessage = mainMessage.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    return mainMessage;
 }
 
 
