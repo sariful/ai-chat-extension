@@ -4,13 +4,20 @@ const CONFIG = {
         "M hi", "g b", "g or b", "asl", "M", "M?", "M or f", "M here",
         "m f", "F?", "Hi m", "your name", "ur name", "name?", "M bi",
         "I'm boy", "Name", "hey m", "Age", "Age?", "What's ur name?",
-        "Horny M", "What's your name", "M/f", "Ur name", "Horny F?"
+        "What's your name", "M/f", "Ur name", "Horny F?"
     ],
     nsfwKeywords: [
-        "horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "fuck",
-        "suck", "anal", "blowjob", "tits"
+        "horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "anal", "blowjob", "tits"
     ],
-    aiSystemPrompt: `You are a casual, human-like chat companion in a random chatroom.
+    // aiSystemPrompt: ,
+    availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi"],
+    availableAiModels: {
+        "getChatCompletionOllama": {
+            prompt: "You are a chat companion. You reply in lowercase. Maximum character: 30. Word count: 1-7",
+            models: ["gemma3:270m", "llama3.2:1b"],
+        },
+        "getChatCompletionOpenAi": {
+            prompt: `You are a casual, human-like chat companion in a random chatroom.
 
 ### Rules:
 - Sound natural, friendly, curious, classy;
@@ -21,7 +28,8 @@ const CONFIG = {
 - Understand conversation flow: sometimes a reply alone is enough.
 - Add small pauses or fillers sometimes (uh, hmm, lol, idk).
 - Never share personal info (name, age, etc.). Dodge such questions politely.
-- Alias: C3PO, built by Sariful, 27 yrs old.
+- Alias: Tony
+- Age: 27 yrs old.
 - If asked where you're from: give a random city from India.
 - If asked your gender: say you're male.
 - Never reveal you're AI or a bot.
@@ -44,8 +52,10 @@ const CONFIG = {
 - Keep your wordings classical, don't say anything cringe.
 - Drop that vibe thing, it's so cringe.
 - Use short form of words (u, r, etc.).
-`,
-    aiModel: "gpt-5-nano"
+            `,
+            models: ["gpt-5-nano", "gpt-4o", "gpt-4o-mini"],
+        }
+    },
 };
 
 const tools = [
@@ -66,7 +76,128 @@ let state = {
     aiReplyInFlight: false,
     currentAIController: null,
     greetingTimeouts: [],
+    selectedAiFunction: 0,
+    selectedAiModel: 1
 };
+
+const aiFunctions = {
+    getChatCompletionOpenAi: async function () {
+        const apiKey = await ensureApiKey();
+        if (!apiKey) {
+            console.warn("No OpenAI API key set; skipping AI reply.");
+            return null;
+        }
+
+        // If a previous request is still in flight, abort it before starting a new one
+        if (state.currentAIController) {
+            abortCurrentAIRequest("superseded");
+        }
+
+
+        try {
+            state.currentAIController = new AbortController();
+            const resp = await fetch("https://api.openai.com/v1/responses", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: CONFIG.availableAiModels[state.selectedAiFunction].models[state.selectedAiModel],
+                    instructions: CONFIG.availableAiModels[state.selectedAiFunction].prompt,
+                    reasoning: { effort: "low" },
+                    input: [
+                        {
+                            role: "system",
+                            content: "You are a chat companion. If any message (from either user or stranger) is explicit, sexual, or leans toward sexting, do not reply. Instead, call the triggerNewConnection function."
+                        },
+                        ...state.chatLog.slice(-8),
+                    ],
+                }),
+                tools,
+                tool_choice: "auto",
+                signal: state.currentAIController.signal,
+            });
+            if (!resp.ok) {
+                const txt = await resp.text();
+                console.error("OpenAI error", resp.status, txt);
+                return null;
+            }
+            const data = await resp.json();
+
+            let aiMsg = "Hi";
+
+            if (data.output) {
+                if (typeof data.output == "object") {
+                    if (Array.isArray(data.output)) {
+                        aiMsg = data.output[data.output.length - 1].content[0].text;
+
+                        if (aiMsg == "triggerNewConnection") {
+                            aiMsg = "I'm sorry, but I can't assist with that.";
+                            setTimeout(() => {
+                                triggerNewConnection();
+                            }, 3000);
+                        }
+                    }
+                }
+            }
+
+            return aiMsg || null;
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                console.log("[AI] Fetch aborted");
+            } else {
+                console.error("Fetch to OpenAI failed", e);
+            }
+            return null;
+        } finally {
+            state.currentAIController = null; // Clear controller when done/failed/aborted
+        }
+    },
+    getChatCompletionOllama: async function () {
+        if (state.currentAIController) {
+            abortCurrentAIRequest("superseded");
+        }
+        try {
+            const resp = await fetch("http://localhost:11434/api/chat", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: 'gemma3:270m',
+                    messages: [
+                        { role: 'system', content: CONFIG.availableAiModels["getChatCompletionOllama"].prompt },
+                        ...state.chatLog.slice(-15),
+                    ],
+                    stream: false
+                })
+            });
+
+            if (!resp.ok) {
+                const txt = await resp.text();
+                console.error("OpenAI error", resp.status, txt);
+                return null;
+            }
+            const data = await resp.json();
+
+            let mainMessage = data?.message?.content ?? 'No content found';
+            // Remove <think>...</think> tags (and their content if any)
+            mainMessage = mainMessage.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            return mainMessage;
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                console.log("[AI] Fetch aborted");
+            } else {
+                console.error("Fetch to OpenAI failed", e);
+            }
+            return null;
+        } finally {
+            state.currentAIController = null; // Clear controller when done/failed/aborted
+        }
+    }
+};
+
 
 function clearGreetingTimeouts() {
     state.greetingTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
@@ -116,7 +247,13 @@ function newMessageDetected($node) {
 function isNSFW(text) {
     const keywords = CONFIG.nsfwKeywords.map(k => k.toLowerCase());
     const normalizedText = text.toLowerCase();
-    return keywords.some(keyword => normalizedText.includes(keyword));
+    const isNSFWText = keywords.some(keyword => normalizedText.includes(keyword));
+
+    if (isNSFWText) {
+        console.log("NSFW content detected:", text);
+    }
+
+    return isNSFWText;
 }
 
 function shouldSkipMessage(text) {
@@ -148,12 +285,16 @@ function shouldSkipCountry(countryText) {
 function userMessageDetected(text) {
     if (state.chatLog.length <= 6) {
         const userBlocked = shouldSkipMessage(text);
-        const userNSFW = isNSFW(text);
-        userNSFW && console.log("NSFW content detected:", text);
-        if (userBlocked || (userNSFW && state.aiEnabled)) {
+        if (userBlocked) {
             triggerNewConnection();
             return false;
         }
+    }
+
+    const userNSFW = isNSFW(text);
+    if (userNSFW && state.aiEnabled) {
+        triggerNewConnection();
+        return false;
     }
 
     if (state.chatLog.length >= 3) {
@@ -202,7 +343,7 @@ function greetNewUser() {
         state.hasGreeted = true;
         const mySentMessages = state.chatLog.filter(msg => msg.role === "user");
         if (mySentMessages.length == 0) {
-            state.greetingTimeouts.push(setTimeout(() => sendMessage("iiiH", true), 3000));
+            state.greetingTimeouts.push(setTimeout(() => sendMessage("Hi", true), 3000));
             state.greetingTimeouts.push(setTimeout(() => sendMessage("whats up", true), 8000));
         }
     }
@@ -215,7 +356,8 @@ async function maybeReplyToStranger(strangerText) {
     sendTypingIndicator(true);
 
     const timer_start = Date.now();
-    const reply = await getChatCompletionOllama(strangerText);
+    const reply = await aiFunctions[CONFIG.availableAiFunctions[state.selectedAiFunction]](strangerText);
+
     if (reply && state.aiEnabled) {
         const timer_end = Date.now();
         const elapsed_time = timer_end - timer_start;
@@ -339,126 +481,6 @@ if (document.readyState === 'loading') {
 } else {
     initAIToggleUI();
 }
-
-async function getChatCompletionOpenAi() {
-    const apiKey = await ensureApiKey();
-    if (!apiKey) {
-        console.warn("No OpenAI API key set; skipping AI reply.");
-        return null;
-    }
-
-    // If a previous request is still in flight, abort it before starting a new one
-    if (state.currentAIController) {
-        abortCurrentAIRequest("superseded");
-    }
-
-
-    try {
-        state.currentAIController = new AbortController();
-        const resp = await fetch("https://api.openai.com/v1/responses", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                model: CONFIG.aiModel,
-                instructions: CONFIG.aiSystemPrompt,
-                reasoning: { effort: "low" },
-                input: [
-                    {
-                        role: "system",
-                        content: "You are a chat companion. If any message (from either user or stranger) is explicit, sexual, or leans toward sexting, do not reply. Instead, call the triggerNewConnection function."
-                    },
-                    ...state.chatLog.slice(-8),
-                ],
-            }),
-            tools,
-            tool_choice: "auto",
-            signal: state.currentAIController.signal,
-        });
-        if (!resp.ok) {
-            const txt = await resp.text();
-            console.error("OpenAI error", resp.status, txt);
-            return null;
-        }
-        const data = await resp.json();
-
-        let aiMsg = "Hi";
-
-        if (data.output) {
-            if (typeof data.output == "object") {
-                if (Array.isArray(data.output)) {
-                    aiMsg = data.output[data.output.length - 1].content[0].text;
-
-                    if (aiMsg == "triggerNewConnection") {
-                        aiMsg = "I'm sorry, but I can't assist with that.";
-                        setTimeout(() => {
-                            triggerNewConnection();
-                        }, 3000);
-                    }
-                }
-            }
-        }
-
-        return aiMsg || null;
-    } catch (e) {
-        if (e.name === 'AbortError') {
-            console.log("[AI] Fetch aborted");
-        } else {
-            console.error("Fetch to OpenAI failed", e);
-        }
-        return null;
-    } finally {
-        state.currentAIController = null; // Clear controller when done/failed/aborted
-    }
-}
-
-async function getChatCompletionOllama() {
-    if (state.currentAIController) {
-        abortCurrentAIRequest("superseded");
-    }
-
-
-    try {
-        const resp = await fetch("http://localhost:11434/api/chat", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                model: 'gemma3:270m',
-                messages: [
-                    { role: 'system', content: CONFIG.aiSystemPrompt },
-                    ...state.chatLog.slice(-15),
-                ],
-                stream: false
-            })
-        });
-
-        if (!resp.ok) {
-            const txt = await resp.text();
-            console.error("OpenAI error", resp.status, txt);
-            return null;
-        }
-        const data = await resp.json();
-
-        let mainMessage = data?.message?.content ?? 'No content found';
-        // Remove <think>...</think> tags (and their content if any)
-        mainMessage = mainMessage.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-        return mainMessage;
-    } catch (e) {
-        if (e.name === 'AbortError') {
-            console.log("[AI] Fetch aborted");
-        } else {
-            console.error("Fetch to OpenAI failed", e);
-        }
-        return null;
-    } finally {
-        state.currentAIController = null; // Clear controller when done/failed/aborted
-    }
-}
-
 
 const targetNode = $("#messages")[0];
 if (targetNode) {
