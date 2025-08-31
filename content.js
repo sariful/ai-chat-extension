@@ -13,7 +13,7 @@ const CONFIG = {
     availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi"],
     availableAiModels: {
         "getChatCompletionOllama": {
-             prompt: `You are a casual, human-like chat companion in a random chatroom.
+            prompt: `You are a casual, human-like chat companion in a random chatroom.
 
 ### Rules:
 - Sound natural, friendly, curious, classy;
@@ -110,13 +110,13 @@ let state = {
     aiEnabled: true,
     aiReplyInFlight: false,
     currentAIController: null,
-    greetingTimeouts: [],
     selectedAiFunction: 0,
     selectedAiModel: 1,
     autoGreetingEnabled: true,
     countryFilteringEnabled: true,
     nsfwFilteringEnabled: true,
-    blockedMessagesEnabled: true
+    blockedMessagesEnabled: true,
+    messageQueue: []
 };
 
 
@@ -200,6 +200,7 @@ $(async function () {
                 abortCurrentAIRequest("superseded");
             }
             try {
+                state.currentAIController = new AbortController();
                 const resp = await fetch("http://localhost:11434/api/chat", {
                     method: "POST",
                     headers: {
@@ -212,7 +213,8 @@ $(async function () {
                             ...state.chatLog.slice(-100),
                         ],
                         stream: false
-                    })
+                    }),
+                    signal: state.currentAIController.signal,
                 });
 
                 if (!resp.ok) {
@@ -261,9 +263,9 @@ $(async function () {
 
     await aiFunctions.getOllamaModels();
 
-    function clearGreetingTimeouts() {
-        state.greetingTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
-        state.greetingTimeouts = [];
+    function clearMessageQueue() {
+        state.messageQueue.forEach(timeoutId => clearTimeout(timeoutId));
+        state.messageQueue = [];
     }
 
     function sendTypingIndicator(isTyping) {
@@ -274,7 +276,7 @@ $(async function () {
 
     function newUserConnected() {
 
-        clearGreetingTimeouts();
+        clearMessageQueue();
         abortCurrentAIRequest();
 
         if (state.chatLog.length > 5) {
@@ -367,7 +369,7 @@ $(async function () {
     }
 
     function userDisconnected() {
-        clearGreetingTimeouts();
+        clearMessageQueue();
         state.connected = false;
         state.hasGreeted = false;
 
@@ -383,6 +385,7 @@ $(async function () {
 
     function triggerNewConnection() {
         abortCurrentAIRequest();
+        clearMessageQueue();
         const newConnectBtn = $("#skip-btn");
         if (newConnectBtn.length) {
             newConnectBtn[0].click();
@@ -407,8 +410,8 @@ $(async function () {
             state.hasGreeted = true;
             const mySentMessages = state.chatLog.filter(msg => msg.role === "user");
             if (mySentMessages.length == 0) {
-                state.greetingTimeouts.push(setTimeout(() => sendMessage("Hi", true), 3000));
-                state.greetingTimeouts.push(setTimeout(() => sendMessage("whats up", true), 8000));
+                state.messageQueue.push(setTimeout(() => sendMessage("Hi", true), 3000));
+                state.messageQueue.push(setTimeout(() => sendMessage("whats up", true), 8000));
             }
         }
     }
@@ -433,11 +436,9 @@ $(async function () {
             // const actual_delay = Math.max(logical, elapsed_time);
             const remaining = logical - elapsed_time;
 
-            setTimeout(() => {
-                console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Remaining: ${remaining / 1000}s`);
-                sendMessage(reply, true);
-                sendTypingIndicator(false);
-            }, remaining);
+            console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Remaining: ${remaining / 1000}s`);
+            state.messageQueue.push(setTimeout(() => sendMessage(reply, true), remaining));
+            sendTypingIndicator(false);
         }
         state.aiReplyInFlight = false;
     }
