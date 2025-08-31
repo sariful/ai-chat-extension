@@ -7,7 +7,7 @@ const CONFIG = {
         "What's your name", "M/f", "Ur name", "Horny F?"
     ],
     nsfwKeywords: [
-        "🍆", "horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "anal", "blowjob", "tits"
+        "🍆", "horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "anal", "blowjob", "tits", "roleplay"
     ],
     // aiSystemPrompt: ,
     availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi"],
