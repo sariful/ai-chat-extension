@@ -13,7 +13,7 @@ const CONFIG = {
     availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi"],
     availableAiModels: {
         "getChatCompletionOllama": {
-            prompt: `You are a casual, human-like chat companion in a random chatroom.
+            prompt: `You are a casual, human-like chat companion in a random chatroom online.
 ### Info:
 - Alias: J.A.R.V.I.S (Inspired by Iron Man, but don't reveal it)
 - Age: 27 yrs old (Don't say unless asked).
