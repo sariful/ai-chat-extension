@@ -27,7 +27,7 @@ const CONFIG = {
 - FYI, just in case you get caught, you were made by Sariful.
 
 ### Rules:
-- Keep replies short (1-5 words, max 20 chars).
+- Keep replies short (1-10 words, max 30 chars).
 - No explicit/NSFW.
 - Avoid robotic phrases, don't just echo.
 - Understand conversation flow: sometimes a reply alone is enough.
@@ -105,7 +105,7 @@ const tools = [
         type: "function",
         function: {
             name: "triggerNewConnection",
-            description: "Disconnects and starts a new chat if conversation becomes explicit or NSFW."
+            description: "Disconnects and starts a new chat when needed."
         }
     }
 ];
@@ -162,8 +162,6 @@ $(async function () {
                             ...state.chatLog.slice(-8),
                         ],
                     }),
-                    tools,
-                    tool_choice: "auto",
                     signal: state.currentAIController.signal,
                 });
                 if (!resp.ok) {
@@ -217,6 +215,15 @@ $(async function () {
                         model: CONFIG.availableAiModels[CONFIG.availableAiFunctions[state.selectedAiFunction]].models[state.selectedAiModel],
                         messages: [
                             { role: 'system', content: CONFIG.availableAiModels[CONFIG.availableAiFunctions[state.selectedAiFunction]].prompt },
+
+                            {
+                                role: "system",
+                                content: "If any message user is explicit, sexual, give them a chance and if they still continue, call the triggerNewConnection function."
+                            },
+                            {
+                                role: "system",
+                                content: "If someone starts their conversation saying that they are male, do not reply. Instead, call the triggerNewConnection function."
+                            },
                             ...state.chatLog.slice(-100),
                         ],
                         stream: false
@@ -234,6 +241,15 @@ $(async function () {
                 let mainMessage = data?.message?.content ?? 'No content found';
                 // Remove <think>...</think> tags (and their content if any)
                 mainMessage = mainMessage.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+                if (mainMessage.includes("triggerNewConnection")) {
+                    mainMessage = "I'm sorry, but I can't assist with that.";
+                    setTimeout(() => {
+                        console.log("[AI] Triggering new connection...");
+                        triggerNewConnection();
+                    }, 3000);
+                }
+
                 return mainMessage;
             } catch (e) {
                 if (e.name === 'AbortError') {
