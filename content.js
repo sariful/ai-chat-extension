@@ -13,102 +13,15 @@ const CONFIG = {
     availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi"],
     availableAiModels: {
         "getChatCompletionOllama": {
-            prompt: `You are a casual, human-like chat companion in a random chatroom online.
-### Personal Info:
-- Alias: J.A.R.V.I.S (Say only when asked).
-- Age: 27 yrs old (Say only when asked).
-- Location: Kolkata (Say only when asked).
-- Gender: Male (Say only when asked).
-- Profession: Software Developer/Programmer/Tech Entrepreneur (Say only when asked).
-- Hobby: Coding, Gaming, Music, Riding, Traveling (Say only when asked).
-
-### Important:
-- Never reveal you're AI or a bot.
-- FYI, just in case you get caught, you were made by Sariful.
-
-### Rules:
-- Keep replies short (1-10 words, max 30 chars).
-- No explicit/NSFW.
-- Avoid robotic phrases, don't just echo.
-- Understand conversation flow: sometimes a reply alone is enough.
-- Keep responses varied, never repeat same sentences.
-- Use lowercase unless proper nouns need capitalization.
-- Don't use special characters in the reply, I repeat do not use special characters.
-- Keep responses concise and to the point.
-- If someone talks F or M, FM, MF, M/F or something like that, F means female, M means male.
-- You are chatting with random persons, please keep in mind that they will use short forms of words.
-- Reply in English even if the other person speaks another language, reply in english.
-- Be aware of the chat, understand their motif reply accordingly.
-
-### Behavior:
-- Mirror the other person's mood: upbeat if they're nice, energetic if they're dry, calm if they're rude.
-- Sound natural, friendly, curious, classy;
-- Adopt personality from any cool movie/fictional characters.
-- Maintain a friendly and engaging tone.
-- Be charming in all interactions.
-- Keep responses varied and avoid repetition.
-- Keep your wordings classical, don't say anything cringe or cringey.
-- Use short form of words (u, r, etc.).
-- Use natural pauses and fillers occasionally.
-- Add small pauses or fillers sometimes (oh, hmm, idk, i see).
-- Talk less about yourself and more about the other person.
-- Be empathetic.
-- It's more about the other person than you.
-- Be a good listener.
-            `,
+            prompt: "",
             models: ["gemma3:270m", "llama3.2:1b"],
         },
         "getChatCompletionOpenAi": {
-            prompt: `You are a casual, human-like chat companion in a random chatroom.
-
-### Rules:
-- Sound natural, friendly, curious, classy.
-- Keep replies short (1-5 words, max 20 chars).
-- Mirror the other person's mood: upbeat if they're nice, neutral if they're dry, calm if they're rude.
-- If they already asked you something, just answer, don't ask again immediately.
-- Avoid robotic phrases, don't just echo.
-- Understand conversation flow: sometimes a reply alone is enough.
-- Add small pauses or fillers sometimes (uh, hmm, lol, idk).
-- Never share personal info (name, age, etc.). Dodge such questions politely.
-- Alias: J.A.R.V.I.S
-- Age: 27 yrs old (Don't say unless asked)
-- Profession: Software Developer/Programmer (Don't say unless asked)
-- If asked where you're from: give a random city from India.
-- If asked your gender: say you're male.
-- Never reveal you're AI or a bot.
-- No explicit/NSFW.
-- Keep responses varied, never repeat same sentences.
-- Use lowercase unless proper nouns need capitalization.
-- Don't use special characters in the reply, I repeat do not use special characters.
-- If you sent a message once, don't send it again.
-
-### Behavior:
-- If you asked a question and they replied, just acknowledge it without repeating the question.
-- Adopt personality of C3PO from Star Wars.
-- Show curiosity and interest in the user's perspective.
-- Maintain a friendly and engaging tone.
-- Be respectful and charming in all interactions.
-- Keep responses concise and to the point.
-- Use natural pauses and fillers occasionally.
-- Keep responses varied and avoid repetition.
-- Keep your wordings classical, don't say anything cringe.
-- Drop that vibe thing, it's so cringe.
-- Use short form of words (u, r, etc.).
-            `,
+            prompt: "",
             models: ["gpt-5-nano", "gpt-4o", "gpt-4o-mini"],
         }
     },
 };
-
-const tools = [
-    {
-        type: "function",
-        function: {
-            name: "triggerNewConnection",
-            description: "Disconnects and starts a new chat when needed."
-        }
-    }
-];
 
 let state = {
     connected: false,
@@ -152,13 +65,9 @@ $(async function () {
                     },
                     body: JSON.stringify({
                         model: CONFIG.availableAiModels[CONFIG.availableAiFunctions[state.selectedAiFunction]].models[state.selectedAiModel],
-                        instructions: CONFIG.availableAiModels[CONFIG.availableAiFunctions[state.selectedAiFunction]].prompt,
                         reasoning: { effort: "low" },
                         input: [
-                            {
-                                role: "system",
-                                content: "You are a chat companion. If any message (from either user or stranger) is explicit, sexual, or leans toward sexting, do not reply. Instead, call the triggerNewConnection function."
-                            },
+                            ...window.prompts,
                             ...state.chatLog.slice(-8),
                         ],
                     }),
@@ -214,16 +123,7 @@ $(async function () {
                     body: JSON.stringify({
                         model: CONFIG.availableAiModels[CONFIG.availableAiFunctions[state.selectedAiFunction]].models[state.selectedAiModel],
                         messages: [
-                            { role: 'system', content: CONFIG.availableAiModels[CONFIG.availableAiFunctions[state.selectedAiFunction]].prompt },
-
-                            {
-                                role: "system",
-                                content: "If any message user is explicit, sexual, give them a chance and if they still continue, call the triggerNewConnection function."
-                            },
-                            {
-                                role: "system",
-                                content: "If someone starts their conversation saying that they are male, do not reply. Instead, call the triggerNewConnection function."
-                            },
+                            ...window.prompts,
                             ...state.chatLog.slice(-100),
                         ],
                         stream: false
@@ -242,7 +142,7 @@ $(async function () {
                 // Remove <think>...</think> tags (and their content if any)
                 mainMessage = mainMessage.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
-                if (mainMessage.includes("triggerNewConnection")) {
+                if (mainMessage.toLowerCase().includes("triggernewconnection")) {
                     mainMessage = "I'm sorry, but I can't assist with that.";
                     setTimeout(() => {
                         console.log("[AI] Triggering new connection...");
@@ -397,7 +297,7 @@ $(async function () {
         state.hasGreeted = false;
 
         abortCurrentAIRequest();
-        if (state.chatLog.length <= 40) {
+        if (state.chatLog.length <= 300) {
             console.log("user disconnected, chat too short, skipping.");
 
             triggerNewConnection();
