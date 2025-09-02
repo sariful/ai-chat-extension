@@ -36,7 +36,8 @@ let state = {
     countryFilteringEnabled: true,
     nsfwFilteringEnabled: true,
     blockedMessagesEnabled: true,
-    messageQueue: []
+    messageQueue: [],
+    dataForFineTuning: []
 };
 
 
@@ -174,12 +175,10 @@ $(async function () {
 
                 if (data.models && Array.isArray(data.models) && data.models.length > 0) {
                     CONFIG.availableAiModels["getChatCompletionOllama"].models = data.models.map(model => model.model);
-                    console.log(CONFIG.availableAiModels["getChatCompletionOllama"].models);
-
                     initOptionsPanel();
                 }
             } catch (error) {
-                console.log("Error: " + error);
+                console.error("Error: " + error);
             }
         }
     };
@@ -203,13 +202,17 @@ $(async function () {
         abortCurrentAIRequest();
 
         if (state.chatLog.length > 5) {
-            console.log(JSON.stringify(state, null, 2));
+            console.log(JSON.parse(JSON.stringify(state.chatLog, null, 2)));
         }
+
+        // save the state.dataForFineTuning into a storage
+
         console.log("New user connected --------------------------------");
 
         state.connected = true;
         state.hasGreeted = false;
         state.chatLog = [];
+        state.dataForFineTuning = [];
 
         greetNewUser();
     }
@@ -299,10 +302,9 @@ $(async function () {
         abortCurrentAIRequest();
         if (state.chatLog.length <= 300) {
             console.log("user disconnected, chat too short, skipping.");
-
             triggerNewConnection();
         } else {
-            console.log("Final chat log:", JSON.stringify(state, null, 2));
+            console.log("Final chat log:", JSON.parse(JSON.stringify(state.chatLog, null, 2)));
         }
     }
 
@@ -362,6 +364,12 @@ $(async function () {
             console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Remaining: ${remaining / 1000}s`);
             state.messageQueue.push(setTimeout(() => sendMessage(reply, true), remaining));
             sendTypingIndicator(false);
+
+            state.dataForFineTuning.push({
+                userMessage: strangerText,
+                aiResponse: reply,
+                timestamp: Date.now()
+            });
         }
         state.aiReplyInFlight = false;
     }
