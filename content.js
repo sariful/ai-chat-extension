@@ -206,6 +206,7 @@ $(async function () {
         }
 
         // save the state.dataForFineTuning into a storage
+        saveFineTuningData();
 
         console.log("New user connected --------------------------------");
 
@@ -366,8 +367,8 @@ $(async function () {
             sendTypingIndicator(false);
 
             state.dataForFineTuning.push({
-                userMessage: strangerText,
-                aiResponse: reply,
+                instruction: strangerText,
+                output: reply,
                 timestamp: Date.now()
             });
         }
@@ -409,6 +410,75 @@ $(async function () {
                 }
                 resolve(key || null);
             });
+        });
+    }
+
+    function saveFineTuningData() {
+        if (state.dataForFineTuning.length === 0) {
+            return;
+        }
+
+        const fineTunedData = JSON.parse(JSON.stringify(state.dataForFineTuning, null, 2));
+        console.log(fineTunedData);
+
+        // Get existing data from storage and append new data
+        chrome.storage.local.get(["FINE_TUNING_DATA"], (result) => {
+            const existingData = result.FINE_TUNING_DATA || [];
+            const newData = [...existingData, ...fineTunedData];
+
+            // Save updated data back to storage
+            chrome.storage.local.set({
+                FINE_TUNING_DATA: newData
+            }, () => {
+                console.log(`Saved ${fineTunedData.length} new fine-tuning entries. Total entries: ${newData.length}`);
+            });
+        });
+    }
+
+    // Helper function to escape CSV fields
+    function escapeCsvField(field) {
+        if (field == null) return '';
+        const str = String(field);
+        // If field contains comma, newline, or quote, wrap in quotes and escape internal quotes
+        if (str.includes(',') || str.includes('\n') || str.includes('\r') || str.includes('"')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
+    }
+
+    function exportFineTuningData() {
+        chrome.storage.local.get(["FINE_TUNING_DATA"], (result) => {
+            const data = result.FINE_TUNING_DATA || [];
+            if (data.length === 0) {
+                alert("No training data available to export.");
+                return;
+            }
+
+
+            // Convert to CSV format
+            const csvHeader = 'instruction,output,timestamp\n';
+            const csvRows = data.map(entry => {
+                return [
+                    escapeCsvField(entry.instruction),
+                    escapeCsvField(entry.output),
+                    escapeCsvField(entry.timestamp)
+                ].join(',');
+            }).join('\n');
+
+            const csvData = csvHeader + csvRows;
+            const blob = new Blob([csvData], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+
+            // Create temporary download link
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fine-tuning-data-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            console.log(`Exported ${data.length} training data entries`);
         });
     }
 
@@ -552,11 +622,13 @@ $(async function () {
                         <div>Connected: <span id="status-connected" style="color:${state.connected ? '#10b981' : '#ef4444'};">${state.connected ? 'Yes' : 'No'}</span></div>
                         <div>AI Provider: <span style="color:#60a5fa;">${CONFIG.availableAiFunctions[state.selectedAiFunction]}</span></div>
                         <div>Chat Messages: <span style="color:#fbbf24;">${state.chatLog.length}</span></div>
+                        <div>Training Data: <span id="training-data-count" style="color:#10b981;">Loading...</span></div>
                     </div>
                 </div>
 
                 <div style="text-align:center;">
-                    <button id="trigger-new-connection" style="background:#dc2626;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:11px;">Skip Current Chat</button>
+                    <button id="trigger-new-connection" style="background:#dc2626;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:11px;margin-right:8px;">Skip Current Chat</button>
+                    <button id="export-fine-tuning-data" style="background:#059669;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:11px;">Export Training Data</button>
                 </div>
             `;
 
@@ -621,6 +693,10 @@ $(async function () {
                     panel.style.display = "none";
                 });
 
+                panel.querySelector("#export-fine-tuning-data").addEventListener("click", () => {
+                    exportFineTuningData();
+                });
+
                 function updateModelDropdown() {
                     const modelSelect = panel.querySelector("#ai-model");
                     const functionName = CONFIG.availableAiFunctions[state.selectedAiFunction];
@@ -641,6 +717,15 @@ $(async function () {
                     if (statusConnected) {
                         statusConnected.textContent = state.connected ? 'Yes' : 'No';
                         statusConnected.style.color = state.connected ? '#10b981' : '#ef4444';
+                    }
+
+                    // Update training data count
+                    const trainingDataCount = panel.querySelector("#training-data-count");
+                    if (trainingDataCount) {
+                        chrome.storage.local.get(["FINE_TUNING_DATA"], (result) => {
+                            const data = result.FINE_TUNING_DATA || [];
+                            trainingDataCount.textContent = data.length + " entries";
+                        });
                     }
                 }
 
