@@ -7,6 +7,7 @@ const CONFIG = {
         "What's your name", "M/f", "Ur name", "Horny F?"
     ],
     nsfwKeywords: [
+        "SpicyChats",
         "🍆", "horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "anal", "blowjob", "tits", "roleplay"
     ],
     // aiSystemPrompt: ,
