@@ -145,7 +145,7 @@ $(async function () {
                 mainMessage = mainMessage.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
                 if (mainMessage.toLowerCase().includes("triggernewconnection")) {
-                    mainMessage = "I'm sorry, but I can't assist with that.";
+                    mainMessage = "Wel, i gtg, nice talkin to ya!";
                     setTimeout(() => {
                         console.log("[AI] Triggering new connection...");
                         triggerNewConnection();
