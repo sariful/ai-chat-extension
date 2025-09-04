@@ -38,7 +38,8 @@ let state = {
     nsfwFilteringEnabled: true,
     blockedMessagesEnabled: true,
     messageQueue: [],
-    dataForFineTuning: []
+    dataForFineTuning: [],
+    chatId: "",
 };
 
 
@@ -216,6 +217,7 @@ $(async function () {
         state.hasGreeted = false;
         state.chatLog = [];
         state.dataForFineTuning = [];
+        state.chatId = Date.now() + "-" + Math.random().toString(36).substring(2, 8);
 
         greetNewUser();
     }
@@ -286,7 +288,7 @@ $(async function () {
 
         if (state.nsfwFilteringEnabled) {
             const userNSFW = isNSFW(text);
-            if (userNSFW && state.aiEnabled) {
+            if (userNSFW && state.aiEnabled && state.chatLog.length <= 30) {
                 triggerNewConnection();
                 return false;
             }
@@ -303,12 +305,9 @@ $(async function () {
         state.hasGreeted = false;
 
         abortCurrentAIRequest();
-        if (state.chatLog.length <= 300) {
-            console.log("user disconnected, chat too short, skipping.");
-            triggerNewConnection();
-        } else {
-            console.log("Final chat log:", JSON.parse(JSON.stringify(state.chatLog, null, 2)));
-        }
+        triggerNewConnection();
+        console.log("User disconnected --------------------------------");
+
     }
 
     function triggerNewConnection() {
@@ -371,7 +370,8 @@ $(async function () {
             state.dataForFineTuning.push({
                 instruction: strangerText,
                 output: reply,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                chatId: state.chatId
             });
         }
         state.aiReplyInFlight = false;
