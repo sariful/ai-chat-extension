@@ -128,7 +128,8 @@ $(async function () {
                             ...window.prompts,
                             ...state.chatLog.slice(-100),
                         ],
-                        stream: false
+                        stream: false,
+                        keep_alive: 3600,
                     }),
                     signal: state.currentAIController.signal,
                 });
