@@ -129,8 +129,13 @@ $(async function () {
                             ...window.prompts,
                             ...state.chatLog.slice(-100),
                         ],
+                        options: {
+                            temperature: 0.3,
+                            frequency_penalty: 0.5,
+                            presence_penalty: 0.3,
+                            num_ctx: 3000,
+                        },
                         stream: false,
-                        keep_alive: 3600,
                     }),
                     signal: state.currentAIController.signal,
                 });
