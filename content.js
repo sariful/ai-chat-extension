@@ -40,6 +40,7 @@ let state = {
     messageQueue: [],
     dataForFineTuning: [],
     chatId: "",
+    firstAiReplyCompleted: false,
 };
 
 
@@ -113,7 +114,7 @@ $(async function () {
             }
         },
         getChatCompletionOllama: async function () {
-            if (state.currentAIController) {
+            if (state.currentAIController && state.firstAiReplyCompleted) {
                 abortCurrentAIRequest("superseded");
             }
             try {
@@ -158,6 +159,7 @@ $(async function () {
                         triggerNewConnection();
                     }, 3000);
                 }
+                state.firstAiReplyCompleted = true;
 
                 return mainMessage;
             } catch (e) {
@@ -207,7 +209,9 @@ $(async function () {
     function newUserConnected() {
 
         clearMessageQueue();
-        abortCurrentAIRequest();
+        if (state.firstAiReplyCompleted) {
+            abortCurrentAIRequest("new user connected");
+        }
 
         if (state.chatLog.length > 5) {
             console.log(JSON.parse(JSON.stringify(state.chatLog, null, 2)));
@@ -309,14 +313,18 @@ $(async function () {
         state.connected = false;
         state.hasGreeted = false;
 
-        abortCurrentAIRequest();
+        if (state.firstAiReplyCompleted) {
+            abortCurrentAIRequest("user disconnected");
+        }
         triggerNewConnection();
         console.log("User disconnected --------------------------------");
 
     }
 
     function triggerNewConnection() {
-        abortCurrentAIRequest();
+        if (state.firstAiReplyCompleted) {
+            abortCurrentAIRequest("trigger new connection");
+        }
         clearMessageQueue();
         const newConnectBtn = $("#skip-btn");
         if (newConnectBtn.length) {
