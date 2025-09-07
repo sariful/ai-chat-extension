@@ -22,7 +22,7 @@ const CONFIG = {
             models: ["gpt-5-nano", "gpt-4o", "gpt-4o-mini"],
         }
     },
-    splitResponseBy: ["\n", ".", "!", "?", ",", ";", "thx", "lol", "haha"],
+    splitResponseBy: ["\n", ". ", "!", "?", ",", ";", "thx", "lol", "haha"],
 };
 
 let state = {
