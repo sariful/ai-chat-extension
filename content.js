@@ -389,21 +389,21 @@ $(async function () {
             const replies = reply.split(new RegExp(CONFIG.splitResponseBy.map(s => '\\' + s).join('|'))).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
             if (replies.length > 0) {
                 let total_time = 0;
+                const timer_end = Date.now();
+                const elapsed_time = timer_end - timer_start;
                 replies.forEach((reply) => {
-                    const timer_end = Date.now();
-                    const elapsed_time = timer_end - timer_start;
 
                     const reading_time_delay = strangerText.split(" ").length * 300; // 300ms per word
 
                     const logical = (reply.length * 200) + 1000 + (reading_time_delay);
 
                     // const actual_delay = Math.max(logical, elapsed_time);
-                    const remaining = logical - elapsed_time;
+                    total_time += logical;
+                    const remaining = elapsed_time + total_time;
 
                     console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Remaining: ${remaining / 1000}s`);
                     state.messageQueue.push(setTimeout(() => sendMessage(reply, true), remaining));
 
-                    total_time += remaining;
                 });
 
                 setTimeout(() => {
