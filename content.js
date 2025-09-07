@@ -202,7 +202,10 @@ $(async function () {
 
     function sendTypingIndicator(isTyping) {
         if (isTyping) {
-            $("#message-input").focus().trigger("change").trigger("input").trigger("keyup").trigger("keydown").trigger("keypress");
+            const input = document.querySelector("#message-input");
+            input.focus();
+            const event = new KeyboardEvent("keydown", { key: "a", bubbles: true });
+            input.dispatchEvent(event);
         }
     }
 
