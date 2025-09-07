@@ -42,6 +42,7 @@ let state = {
     dataForFineTuning: [],
     chatId: "",
     firstAiReplyCompleted: false,
+    isTyping: false,
 };
 
 
@@ -201,14 +202,23 @@ $(async function () {
         state.messageQueue = [];
     }
 
-    function sendTypingIndicator(isTyping) {
-        if (isTyping) {
-            const input = document.querySelector("#message-input");
-            input.focus();
-            const event = new KeyboardEvent("keydown", { key: "a", bubbles: true });
-            input.dispatchEvent(event);
+    const ws = new WebSocket("wss://omegleweb.io:8443/");
+
+    let typingInterval = null;
+
+    setInterval(() => {
+        if (state.isTyping && !typingInterval) {
+            // Start sending typing every 2 sec
+            typingInterval = setInterval(() => {
+                ws.send(JSON.stringify({ channel: "typing", data: true }));
+            }, 500);
+        } else if (!state.isTyping && typingInterval) {
+            // Stop typing
+            clearInterval(typingInterval);
+            typingInterval = null;
+            ws.send(JSON.stringify({ channel: "typing", data: false }));
         }
-    }
+    }, 500);
 
     function newUserConnected() {
 
@@ -364,7 +374,7 @@ $(async function () {
         if (state.aiReplyInFlight || !state.aiEnabled) return;
         state.aiReplyInFlight = true;
 
-        sendTypingIndicator(true);
+        state.isTyping = true;
 
         const timer_start = Date.now();
         const reply = await aiFunctions[CONFIG.availableAiFunctions[state.selectedAiFunction]](strangerText);
@@ -376,8 +386,9 @@ $(async function () {
                 timestamp: Date.now(),
                 chatId: state.chatId
             });
-            const replies = reply.split(new RegExp(CONFIG.splitResponseBy.map(s => '\\' + s).join('|'))).map(s => s.trim()).filter(s => s.length > 0);
+            const replies = reply.split(new RegExp(CONFIG.splitResponseBy.map(s => '\\' + s).join('|'))).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
             if (replies.length > 0) {
+                let total_time = 0;
                 replies.forEach((reply) => {
                     const timer_end = Date.now();
                     const elapsed_time = timer_end - timer_start;
@@ -391,9 +402,13 @@ $(async function () {
 
                     console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Remaining: ${remaining / 1000}s`);
                     state.messageQueue.push(setTimeout(() => sendMessage(reply, true), remaining));
-                });
-                sendTypingIndicator(false);
 
+                    total_time += remaining;
+                });
+
+                setTimeout(() => {
+                    state.isTyping = false;
+                }, total_time);
             }
         }
         state.aiReplyInFlight = false;

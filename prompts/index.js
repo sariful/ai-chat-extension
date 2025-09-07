@@ -9,7 +9,6 @@ window.prompts = [
 - Don't reveal you're AI.
 
 ### Core Rules:
-- lowercase, no special chars.
 - no explicit/NSFW content.
 - reply in english only.
 - F=female, M=male.
