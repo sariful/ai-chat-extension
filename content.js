@@ -388,27 +388,37 @@ $(async function () {
             });
             const replies = reply.split(new RegExp(CONFIG.splitResponseBy.map(s => '\\' + s).join('|'))).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
             if (replies.length > 0) {
-                let total_time = 0;
                 const timer_end = Date.now();
                 const elapsed_time = timer_end - timer_start;
-                replies.forEach((reply) => {
+                let totalDelay = -elapsed_time;
 
-                    const reading_time_delay = strangerText.split(" ").length * 300; // 300ms per word
+                // Initial delay: time for "reading" the stranger's message
+                const readingDelay = strangerText.split(/\s+/).length * 300; // 300 ms per word
+                totalDelay += readingDelay;
 
-                    const logical = (reply.length * 200) + 1000 + (reading_time_delay);
+                replies.forEach((replyText) => {
+                    // Estimate typing time (150 ms per character, plus a small random factor)
+                    const baseTypingTime = replyText.length * 150;
+                    const randomFactor = Math.floor(Math.random() * 1000); // up to 1s variation
+                    const typingDelay = baseTypingTime + 500 + randomFactor; // 500ms base "thinking pause"
 
-                    // const actual_delay = Math.max(logical, elapsed_time);
-                    total_time += logical;
-                    const remaining = elapsed_time + total_time;
+                    totalDelay += typingDelay;
 
-                    console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Remaining: ${remaining / 1000}s`);
-                    state.messageQueue.push(setTimeout(() => sendMessage(reply, true), remaining));
+                    console.log(
+                        `AI message: ${replyText}`,
+                        `Typing Delay: ${(typingDelay / 1000).toFixed(2)}s`,
+                        `Total Wait: ${(totalDelay / 1000).toFixed(2)}s`
+                    );
 
+                    state.messageQueue.push(
+                        setTimeout(() => sendMessage(replyText, true), totalDelay)
+                    );
                 });
 
+                // Mark typing finished after all replies
                 setTimeout(() => {
                     state.isTyping = false;
-                }, total_time);
+                }, totalDelay);
             }
         }
         state.aiReplyInFlight = false;
