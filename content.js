@@ -22,6 +22,7 @@ const CONFIG = {
             models: ["gpt-5-nano", "gpt-4o", "gpt-4o-mini"],
         }
     },
+    splitResponseBy: ["\n", ".", "!", "?", ",", ";", "thx", "lol", "haha"],
 };
 
 let state = {
@@ -369,26 +370,31 @@ $(async function () {
         const reply = await aiFunctions[CONFIG.availableAiFunctions[state.selectedAiFunction]](strangerText);
 
         if (reply && state.aiEnabled) {
-            const timer_end = Date.now();
-            const elapsed_time = timer_end - timer_start;
-
-            const reading_time_delay = strangerText.split(" ").length * 300; // 300ms per word
-
-            const logical = (reply.length * 200) + 1000 + (reading_time_delay);
-
-            // const actual_delay = Math.max(logical, elapsed_time);
-            const remaining = logical - elapsed_time;
-
-            console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Remaining: ${remaining / 1000}s`);
-            state.messageQueue.push(setTimeout(() => sendMessage(reply, true), remaining));
-            sendTypingIndicator(false);
-
             state.dataForFineTuning.push({
                 instruction: strangerText,
                 output: reply,
                 timestamp: Date.now(),
                 chatId: state.chatId
             });
+            const replies = reply.split(new RegExp(CONFIG.splitResponseBy.map(s => '\\' + s).join('|'))).map(s => s.trim()).filter(s => s.length > 0);
+            if (replies.length > 0) {
+                replies.forEach((reply) => {
+                    const timer_end = Date.now();
+                    const elapsed_time = timer_end - timer_start;
+
+                    const reading_time_delay = strangerText.split(" ").length * 300; // 300ms per word
+
+                    const logical = (reply.length * 200) + 1000 + (reading_time_delay);
+
+                    // const actual_delay = Math.max(logical, elapsed_time);
+                    const remaining = logical - elapsed_time;
+
+                    console.log(`AI message: ${reply}.`, `Delay Logical: ${logical / 1000}s, Delay Elapsed: ${elapsed_time / 1000}s, Delay Remaining: ${remaining / 1000}s`);
+                    state.messageQueue.push(setTimeout(() => sendMessage(reply, true), remaining));
+                });
+                sendTypingIndicator(false);
+
+            }
         }
         state.aiReplyInFlight = false;
     }
