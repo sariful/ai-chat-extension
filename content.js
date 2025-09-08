@@ -370,6 +370,23 @@ $(async function () {
         }
     }
 
+    function splitRepliesIntoChunks(text) {
+        const regex = /(?<!\b[A-Z])(?<!\b[A-Z]\.)(?<![A-Z]\.[A-Z])([^.!?]+[.!?]?)/gi;
+
+        let chunks = [];
+        let match;
+
+        while ((match = regex.exec(text)) !== null) {
+            let chunk = match[1].trim();
+            if (chunk) chunks.push(chunk.toLowerCase());
+        }
+
+        // Fallback if nothing matched
+        if (chunks.length === 0) chunks = [text.toLowerCase()];
+
+        return chunks;
+    }
+
     async function maybeReplyToStranger(strangerText) {
         if (state.aiReplyInFlight || !state.aiEnabled) return;
         state.aiReplyInFlight = true;
@@ -386,7 +403,7 @@ $(async function () {
                 timestamp: Date.now(),
                 chatId: state.chatId
             });
-            const replies = reply.split(new RegExp(CONFIG.splitResponseBy.map(s => '\\' + s).join('|'))).map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+            const replies = splitRepliesIntoChunks(reply);
             if (replies.length > 0) {
                 const timer_end = Date.now();
                 const elapsed_time = timer_end - timer_start;
@@ -407,6 +424,7 @@ $(async function () {
                     console.log(
                         `AI message: ${replyText}`,
                         `Typing Delay: ${(typingDelay / 1000).toFixed(2)}s`,
+                        `Elapsed: ${(elapsed_time / 1000).toFixed(2)}s`,
                         `Total Wait: ${(totalDelay / 1000).toFixed(2)}s`
                     );
 
