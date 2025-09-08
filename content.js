@@ -6,10 +6,6 @@ const CONFIG = {
         "I'm boy", "Name", "hey m", "Age", "Age?", "What's ur name?",
         "What's your name", "M/f", "Ur name", "Horny F?"
     ],
-    nsfwKeywords: [
-        "SpicyChats",
-        "🍆", "horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "anal", "blowjob", "tits", "roleplay"
-    ],
     // aiSystemPrompt: ,
     availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi"],
     availableAiModels: {
@@ -263,16 +259,19 @@ $(async function () {
     }
 
     function isNSFW(text) {
-        const keywords = CONFIG.nsfwKeywords.map(k => k.toLowerCase());
         const normalizedText = text.toLowerCase();
-        const isNSFWText = keywords.some(keyword => normalizedText.includes(keyword));
 
-        if (isNSFWText) {
-            console.log("NSFW content detected:", text);
-        }
+        const wordKeywords = ["horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "anal", "blowjob", "tits", "roleplay"];
+        const emojiKeywords = ["🍆"];
 
-        return isNSFWText;
+        const words = normalizedText.split(/\W+/);
+
+        const wordMatch = words.some(word => wordKeywords.includes(word));
+        const emojiMatch = emojiKeywords.some(emoji => normalizedText.includes(emoji));
+
+        return wordMatch || emojiMatch;
     }
+
 
     function shouldSkipMessage(text) {
         const normalizedText = text.toLowerCase().trim();
