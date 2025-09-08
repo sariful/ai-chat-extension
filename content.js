@@ -369,21 +369,40 @@ $(async function () {
         }
     }
 
-    function splitRepliesIntoChunks(text) {
-        const regex = /(?<!\b[A-Z])(?<!\b[A-Z]\.)(?<![A-Z]\.[A-Z])([^.!?]+[.!?]?)/gi;
+    function splitRepliesIntoChunks(text, maxWords = 12) {
+        // 1. Detect and preserve abbreviations (e.g., J.A.R.V.I.S, B.Com)
+        const abbreviationPattern = /(?:[A-Za-z]\.){2,}[A-Za-z]?|[A-Za-z]\.[A-Za-z]+/g;
+        const abbreviations = [];
+        let placeholderText = text.replace(abbreviationPattern, (match) => {
+            abbreviations.push(match);
+            return `[[ABBR_${abbreviations.length - 1}]]`;
+        });
 
-        let chunks = [];
+        // 2. Split sentences on common boundaries (., !, ?, ;, :, —, –, …)
+        const sentencePattern = /[^.!?;:—–…]+[.!?;:—–…]?/g;
+        let rawChunks = [];
         let match;
-
-        while ((match = regex.exec(text)) !== null) {
-            let chunk = match[1].trim();
-            if (chunk) chunks.push(chunk.toLowerCase());
+        while ((match = sentencePattern.exec(placeholderText)) !== null) {
+            let chunk = match[0].trim();
+            if (chunk) rawChunks.push(chunk);
         }
 
-        // Fallback if nothing matched
-        if (chunks.length === 0) chunks = [text.toLowerCase()];
+        // 3. Further split long sentences by word limit
+        let finalChunks = [];
+        for (let chunk of rawChunks) {
+            // Restore abbreviations
+            chunk = chunk.replace(/\[\[ABBR_(\d+)]]/g, (_, index) => abbreviations[index]);
 
-        return chunks;
+            let words = chunk.split(/\s+/);
+            while (words.length > maxWords) {
+                finalChunks.push(words.splice(0, maxWords).join(" ").toLowerCase());
+            }
+            if (words.length) {
+                finalChunks.push(words.join(" ").toLowerCase());
+            }
+        }
+
+        return finalChunks.length ? finalChunks : [text.toLowerCase()];
     }
 
     async function maybeReplyToStranger(strangerText) {
