@@ -115,6 +115,9 @@ $(async function () {
             if (state.currentAIController && state.firstAiReplyCompleted) {
                 abortCurrentAIRequest("superseded");
             }
+            if (!state.firstAiReplyCompleted) {
+                sendTypingIndicator();
+            }
             try {
                 state.currentAIController = new AbortController();
                 const resp = await fetch("http://localhost:11434/api/chat", {
@@ -198,23 +201,38 @@ $(async function () {
         state.messageQueue = [];
     }
 
-    const ws = new WebSocket("wss://omegleweb.io:8443/");
+    function sendTypingIndicator() {
+        let typingInterval = null;
 
-    let typingInterval = null;
+        setInterval(() => {
+            if (state.isTyping && !typingInterval && state.connected) {
+                // Start simulating typing every 500ms
+                typingInterval = setInterval(() => {
+                    const input = document.querySelector("#message-input");
+                    if (input) {
+                        const keydownEvent = new KeyboardEvent("keydown", { key: "a", bubbles: true });
+                        input.dispatchEvent(keydownEvent);
+                    }
+                }, 500);
 
-    setInterval(() => {
-        if (state.isTyping && !typingInterval) {
-            // Start sending typing every 2 sec
-            typingInterval = setInterval(() => {
-                ws.send(JSON.stringify({ channel: "typing", data: true }));
-            }, 500);
-        } else if (!state.isTyping && typingInterval) {
-            // Stop typing
-            clearInterval(typingInterval);
-            typingInterval = null;
-            ws.send(JSON.stringify({ channel: "typing", data: false }));
-        }
-    }, 500);
+                if (!state.aiEnabled) {
+                    state.isTyping = false;
+                }
+            } else if (!state.isTyping && typingInterval) {
+                // Stop typing simulation
+                clearInterval(typingInterval);
+                typingInterval = null;
+
+                // Send keyup to indicate release
+                const input = document.querySelector("#message-input");
+                if (input) {
+                    const keyupEvent = new KeyboardEvent("keyup", { key: "a", bubbles: true });
+                    input.dispatchEvent(keyupEvent);
+                }
+            }
+        }, 500);
+    }
+
 
     function newUserConnected() {
 
@@ -237,6 +255,7 @@ $(async function () {
         state.chatLog = [];
         state.dataForFineTuning = [];
         state.chatId = Date.now() + "-" + Math.random().toString(36).substring(2, 8);
+        state.isTyping = false;
 
         greetNewUser();
     }
@@ -261,7 +280,7 @@ $(async function () {
     function isNSFW(text) {
         const normalizedText = text.toLowerCase();
 
-        const wordKeywords = ["horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "anal", "blowjob", "tits", "roleplay"];
+        const wordKeywords = ["horny", "sex", "nude", "boobs", "pussy", "dick", "cock", "anal", "blowjob", "tits", "roleplay", "SpicyChats"];
         const emojiKeywords = ["🍆"];
 
         const words = normalizedText.split(/\W+/);
@@ -578,6 +597,7 @@ $(async function () {
         } catch (e) {
             console.warn("Failed to abort AI request", e);
         }
+        state.isTyping = false;
         state.aiReplyInFlight = false;
     }
 
