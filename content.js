@@ -534,6 +534,7 @@ $(async function () {
             chrome.storage.local.set({
                 FINE_TUNING_DATA: newData
             }, () => {
+                console.log(newData);
                 console.log(`Saved ${fineTunedData.length} new fine-tuning entries. Total entries: ${newData.length}`);
             });
         });
@@ -560,12 +561,13 @@ $(async function () {
 
 
             // Convert to CSV format
-            const csvHeader = 'instruction,output,timestamp\n';
+            const csvHeader = 'instruction,output,timestamp,chatId\n';
             const csvRows = data.map(entry => {
                 return [
                     escapeCsvField(entry.instruction),
                     escapeCsvField(entry.output),
-                    escapeCsvField(entry.timestamp)
+                    escapeCsvField(entry.timestamp),
+                    escapeCsvField(entry.chatId),
                 ].join(',');
             }).join('\n');
 
