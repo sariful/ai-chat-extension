@@ -7,7 +7,7 @@ const CONFIG = {
         "What's your name", "M/f", "Ur name", "Horny F?"
     ],
     // aiSystemPrompt: ,
-    availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi"],
+    availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi", "getChatCompletionCustom"],
     availableAiModels: {
         "getChatCompletionOllama": {
             prompt: "",
@@ -16,7 +16,11 @@ const CONFIG = {
         "getChatCompletionOpenAi": {
             prompt: "",
             models: ["gpt-5-nano", "gpt-4o", "gpt-4o-mini"],
-        }
+        },
+        "getChatCompletionCustom": {
+            prompt: "",
+            models: ["gemma3:270m", "llama3.2:1b"],
+        },
     },
     splitResponseBy: ["\n", ". ", "!", "?", ",", ";", "thx", "lol", "haha"],
 };
@@ -174,6 +178,63 @@ $(async function () {
                 state.currentAIController = null; // Clear controller when done/failed/aborted
             }
         },
+        getChatCompletionCustom: async function () {
+
+            if (state.currentAIController && state.firstAiReplyCompleted) {
+                abortCurrentAIRequest("superseded");
+            }
+            if (!state.firstAiReplyCompleted) {
+                sendTypingIndicator();
+            }
+
+            try {
+                state.currentAIController = new AbortController();
+                const resp = await fetch("http://localhost:5533/chat", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        messages: [
+                            ...state.chatLog.slice(-100),
+                        ],
+                    }),
+                    signal: state.currentAIController.signal,
+                });
+
+                if (!resp.ok) {
+                    const txt = await resp.text();
+                    console.error("OpenAI error", resp.status, txt);
+                    return null;
+                }
+                const data = await resp.json();
+
+                let mainMessage = data?.message ?? 'No content found';
+                // Remove <think>...</think> tags (and their content if any)
+                mainMessage = mainMessage.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+                if (mainMessage.toLowerCase().includes("triggernewconnection")) {
+                    mainMessage = "Wel, i gtg, nice talkin to ya!";
+                    setTimeout(() => {
+                        console.log("[AI] Triggering new connection...");
+                        triggerNewConnection();
+                    }, 3000);
+                }
+                state.firstAiReplyCompleted = true;
+
+                return mainMessage;
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    console.log("[AI] Fetch aborted");
+                } else {
+                    console.error("Fetch to OpenAI failed", e);
+                }
+                return null;
+            } finally {
+                state.currentAIController = null; // Clear controller when done/failed/aborted
+            }
+        },
+
         getOllamaModels: async function () {
             try {
                 const resp = await fetch("http://localhost:11434/api/tags");
@@ -693,6 +754,7 @@ $(async function () {
                         <select id="ai-function" style="width:100%;padding:4px 8px;border:1px solid #4b5563;border-radius:4px;background:#374151;color:#f9fafb;">
                             <option value="0" ${state.selectedAiFunction === 0 ? 'selected' : ''}>Ollama (Local)</option>
                             <option value="1" ${state.selectedAiFunction === 1 ? 'selected' : ''}>OpenAI</option>
+                            <option value="2" ${state.selectedAiFunction === 2 ? 'selected' : ''}>Custom (Local)</option>
                         </select>
                     </div>
 
