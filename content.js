@@ -124,6 +124,9 @@ $(async function () {
             }
             try {
                 state.currentAIController = new AbortController();
+
+                const context = await aiFunctions.getContext(`The user said: ${state.chatLog[state.chatLog.length - 1]?.content || ""}`);
+
                 const resp = await fetch("http://localhost:11434/api/chat", {
                     method: "POST",
                     headers: {
@@ -133,6 +136,10 @@ $(async function () {
                         model: CONFIG.availableAiModels[CONFIG.availableAiFunctions[state.selectedAiFunction]].models[state.selectedAiModel],
                         messages: [
                             ...window.prompts,
+                            {
+                                role: "system",
+                                content: `Context: ${context}`,
+                            },
                             ...state.chatLog.slice(-100),
                         ],
                         options: {
@@ -249,6 +256,30 @@ $(async function () {
                     CONFIG.availableAiModels["getChatCompletionOllama"].models = data.models.map(model => model.model);
                     initOptionsPanel();
                 }
+            } catch (error) {
+                console.error("Error: " + error);
+            }
+        },
+
+        getContext: async function(userMessage) {
+            try {
+                const resp = await fetch("http://localhost:5533/context", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        message: userMessage,
+                    }),
+                });
+                if (!resp.ok) {
+                    const txt = await resp.text();
+                    console.error("Custom API error", resp.status, txt);
+                    return null;
+                }
+                const data = await resp.json();
+
+                return data.context || null;
             } catch (error) {
                 console.error("Error: " + error);
             }
