@@ -138,7 +138,8 @@ $(async function () {
                             ...window.prompts,
                             {
                                 role: "system",
-                                content: `Context: ${context}`,
+                                content: `Relevant information about yourself:
+                                ${context.join("\n")}`,
                             },
                             ...state.chatLog.slice(-100),
                         ],
@@ -261,7 +262,7 @@ $(async function () {
             }
         },
 
-        getContext: async function(userMessage) {
+        getContext: async function (userMessage) {
             try {
                 const resp = await fetch("http://localhost:5533/context", {
                     method: "POST",
@@ -480,7 +481,7 @@ $(async function () {
         }
     }
 
-    function splitRepliesIntoChunks(text, maxWords = 12) {
+    function splitRepliesIntoChunks(text, maxWords = 6) {
         // 1. Detect and preserve abbreviations (e.g., J.A.R.V.I.S, B.Com)
         const abbreviationPattern = /(?:[A-Za-z]\.){2,}[A-Za-z]?|[A-Za-z]\.[A-Za-z]+/g;
         const abbreviations = [];
@@ -536,19 +537,21 @@ $(async function () {
             if (replies.length > 0) {
                 const timer_end = Date.now();
                 const elapsed_time = timer_end - timer_start;
-                let totalDelay = -elapsed_time;
 
                 // Initial delay: time for "reading" the stranger's message
                 const readingDelay = strangerText.split(/\s+/).length * 300; // 300 ms per word
-                totalDelay += readingDelay;
+                let totalDelay = readingDelay;
 
-                replies.forEach((replyText) => {
-                    // Estimate typing time (150 ms per character, plus a small random factor)
+                replies.forEach((replyText, idx) => {
+                    // Estimate typing time
                     const baseTypingTime = replyText.length * 150;
-                    const randomFactor = Math.floor(Math.random() * 1000); // up to 1s variation
-                    const typingDelay = baseTypingTime + 500 + randomFactor; // 500ms base "thinking pause"
+                    const randomFactor = Math.floor(Math.random() * 1000);
+                    const typingDelay = baseTypingTime + 500 + randomFactor;
 
-                    totalDelay += typingDelay;
+                    // For the first message, reduce by elapsed_time once
+                    if (idx === 0) {
+                        totalDelay = Math.max(0, totalDelay - elapsed_time);
+                    }
 
                     console.log(
                         `AI message: ${replyText}`,
@@ -560,6 +563,7 @@ $(async function () {
                     state.messageQueue.push(
                         setTimeout(() => sendMessage(replyText, true), totalDelay)
                     );
+                    totalDelay += typingDelay;
                 });
 
                 // Mark typing finished after all replies
