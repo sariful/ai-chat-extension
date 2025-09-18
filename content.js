@@ -276,13 +276,14 @@ $(async function () {
                 if (!resp.ok) {
                     const txt = await resp.text();
                     console.error("Custom API error", resp.status, txt);
-                    return null;
+                    return [];
                 }
                 const data = await resp.json();
 
                 return data.context || null;
             } catch (error) {
-                console.error("Error: " + error);
+                console.info("Error: " + error);
+                return [];
             }
         }
     };
