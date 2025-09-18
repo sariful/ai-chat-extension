@@ -63,6 +63,9 @@ $(async function () {
 
             try {
                 state.currentAIController = new AbortController();
+
+                const context = await aiFunctions.getContext(`The user said: ${state.chatLog[state.chatLog.length - 1]?.content || ""}`);
+
                 const resp = await fetch("https://api.openai.com/v1/responses", {
                     method: "POST",
                     headers: {
@@ -74,6 +77,11 @@ $(async function () {
                         reasoning: { effort: "low" },
                         input: [
                             ...window.prompts,
+                            {
+                                role: "system",
+                                content: `Relevant information about yourself:
+                                ${context.join("\n")}`,
+                            },
                             ...state.chatLog.slice(-8),
                         ],
                     }),
