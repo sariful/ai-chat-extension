@@ -4,7 +4,7 @@ const CONFIG = {
         "M hi", "g b", "g or b", "asl", "M", "M?", "M or f", "M here",
         "m f", "F?", "Hi m", "your name", "ur name", "name?", "M bi",
         "I'm boy", "Name", "hey m", "Age", "Age?", "What's ur name?",
-        "What's your name", "M/f", "Ur name", "Horny F?"
+        "What's your name", "M/f", "Ur name", "Horny F?", "male", "Male?",
     ],
     // aiSystemPrompt: ,
     availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi", "getChatCompletionCustom"],
@@ -60,6 +60,9 @@ $(async function () {
                 abortCurrentAIRequest("superseded");
             }
 
+            if (!state.firstAiReplyCompleted) {
+                sendTypingIndicator();
+            }
 
             try {
                 state.currentAIController = new AbortController();
@@ -74,7 +77,6 @@ $(async function () {
                     },
                     body: JSON.stringify({
                         model: CONFIG.availableAiModels[CONFIG.availableAiFunctions[state.selectedAiFunction]].models[state.selectedAiModel],
-                        reasoning: { effort: "low" },
                         input: [
                             ...window.prompts,
                             {
