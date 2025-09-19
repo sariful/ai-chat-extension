@@ -549,18 +549,15 @@ $(async function () {
 
                 // Initial delay: time for "reading" the stranger's message
                 const readingDelay = strangerText.split(/\s+/).length * 300; // 300 ms per word
-                let totalDelay = readingDelay;
 
-                replies.forEach((replyText, idx) => {
+                // Calculate initial delay accounting for elapsed time
+                let totalDelay = Math.max(0, readingDelay - elapsed_time);
+
+                replies.forEach((replyText) => {
                     // Estimate typing time
                     const baseTypingTime = replyText.length * 150;
                     const randomFactor = Math.floor(Math.random() * 1000);
                     const typingDelay = baseTypingTime + 500 + randomFactor;
-
-                    // For the first message, reduce by elapsed_time once
-                    if (idx === 0) {
-                        totalDelay = Math.max(0, totalDelay - elapsed_time);
-                    }
 
                     console.log(
                         `AI message: ${replyText}`,
