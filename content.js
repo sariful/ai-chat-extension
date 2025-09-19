@@ -5,6 +5,7 @@ const CONFIG = {
         "m f", "F?", "Hi m", "your name", "ur name", "name?", "M bi",
         "I'm boy", "Name", "hey m", "Age", "Age?", "What's ur name?",
         "What's your name", "M/f", "Ur name", "Horny F?", "male", "Male?",
+        "boy"
     ],
     // aiSystemPrompt: ,
     availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi", "getChatCompletionCustom"],
@@ -43,6 +44,7 @@ let state = {
     chatId: "",
     firstAiReplyCompleted: false,
     isTyping: false,
+    userGender: "unknown",
 };
 
 
@@ -295,7 +297,31 @@ $(async function () {
                 console.info("Error: " + error);
                 return [];
             }
-        }
+        },
+        classifyGender: async function (userMessage) {
+            try {
+                const resp = await fetch("http://localhost:5533/gender-classifier", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        message: userMessage,
+                    }),
+                });
+
+                if (!resp.ok) {
+                    const txt = await resp.text();
+                    console.error("Custom API error", resp.status, txt);
+                    return null;
+                }
+                const data = await resp.json();
+                return data || null;
+            } catch (error) {
+                console.info("Error: " + error);
+                return null;
+            }
+        },
     };
 
     await aiFunctions.getOllamaModels();
@@ -422,7 +448,7 @@ $(async function () {
     // console.log("You:", text);
     // }
 
-    function userMessageDetected(text) {
+    async function userMessageDetected(text) {
         if (state.chatLog.length <= 6 && state.blockedMessagesEnabled) {
             const userBlocked = shouldSkipMessage(text);
             if (userBlocked) {
@@ -436,6 +462,24 @@ $(async function () {
             if (userNSFW && state.aiEnabled && state.chatLog.length <= 30) {
                 triggerNewConnection();
                 return false;
+            } else if (userNSFW && state.chatLog.length <= 8) {
+                triggerNewConnection();
+                return false;
+            }
+        }
+
+        if (state.connected) {
+            const userGender = await aiFunctions.classifyGender(text);
+            if (userGender) {
+                state.userGender = userGender;
+                if (userGender.gender === "male") {
+                    if (userGender.confidence >= 0.6 && state.chatLog.length <= 10) {
+                        console.log(`User is male (confidence: ${userGender.confidence})`, text);
+                        triggerNewConnection();
+                        return false;
+                    }
+                }
+                console.log(`User gender detected: ${userGender.gender} (confidence: ${userGender.confidence})`);
             }
         }
 
