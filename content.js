@@ -690,19 +690,11 @@ $(async function () {
             if (replies.length > 0) {
                 const timer_end = Date.now();
                 const elapsed_time = timer_end - timer_start;
-
-                // Initial delay: time for "reading" the stranger's message
-                const readingDelay = strangerText.split(/\s+/).length * 300; // 300 ms per word
-
-                // Calculate initial delay accounting for elapsed time
-                let totalDelay = Math.max(0, readingDelay - elapsed_time);
+                let totalDelay = Math.max(0, -elapsed_time);
 
                 replies.forEach((replyText) => {
-                    // Estimate typing time
-                    const baseTypingTime = replyText.length * 150;
-                    const randomFactor = Math.floor(Math.random() * 1000);
-                    const typingDelay = baseTypingTime + 500 + randomFactor;
-
+                    const typingDelay = replyText.length * 150;
+                    totalDelay += typingDelay;
                     console.log(
                         `AI message: ${replyText}`,
                         `Typing Delay: ${(typingDelay / 1000).toFixed(2)}s`,
@@ -713,7 +705,6 @@ $(async function () {
                     state.messageQueue.push(
                         setTimeout(() => sendMessage(replyText, true), totalDelay)
                     );
-                    totalDelay += typingDelay;
                 });
 
                 // Mark typing finished after all replies
