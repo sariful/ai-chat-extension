@@ -295,7 +295,9 @@ $(async function () {
                 };
 
                 const contents = [];
-                const system_instruction = [];
+                const system_instruction = {
+                    parts: []
+                };
 
                 for (const msg of messages) {
                     if (msg.role != "system") {
@@ -308,12 +310,8 @@ $(async function () {
                             ]
                         });
                     } else {
-                        system_instruction.push({
-                            parts: [
-                                {
-                                    text: msg.content,
-                                }
-                            ]
+                        system_instruction.parts.push({
+                            text: msg.content,
                         });
                     }
                 }
