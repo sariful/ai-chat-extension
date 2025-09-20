@@ -8,7 +8,7 @@ const CONFIG = {
         "boy"
     ],
     // aiSystemPrompt: ,
-    availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi", "getChatCompletionCustom"],
+    availableAiFunctions: ["getChatCompletionOllama", "getChatCompletionOpenAi", "getChatCompletionCustom", "getChatCompletionGemini"],
     availableAiModels: {
         "getChatCompletionOllama": {
             prompt: "",
@@ -21,6 +21,10 @@ const CONFIG = {
         "getChatCompletionCustom": {
             prompt: "",
             models: ["gemma3:270m", "llama3.2:1b"],
+        },
+        "getChatCompletionGemini": {
+            prompt: "",
+            models: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
         },
     },
     splitResponseBy: ["\n", ". ", "!", "?", ",", ";", "thx", "lol", "haha"],
@@ -243,6 +247,102 @@ $(async function () {
                 state.firstAiReplyCompleted = true;
 
                 return mainMessage;
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    console.log("[AI] Fetch aborted");
+                } else {
+                    console.error("Fetch to OpenAI failed", e);
+                }
+                return null;
+            } finally {
+                state.currentAIController = null; // Clear controller when done/failed/aborted
+            }
+        },
+
+        getChatCompletionGemini: async function () {
+            const apiKey = await ensureGeminiApiKey();
+            if (!apiKey) {
+                console.error("No Gemini API key found");
+                return null;
+            }
+            if (state.currentAIController) {
+                abortCurrentAIRequest("superseded");
+            }
+
+            if (!state.firstAiReplyCompleted) {
+                sendTypingIndicator();
+            }
+
+            try {
+                state.currentAIController = new AbortController();
+
+                const context = await aiFunctions.getContext(`The user said: ${state.chatLog[state.chatLog.length - 1]?.content || ""}`);
+
+                const messages = [
+                    ...window.prompts,
+                    {
+                        role: "system",
+                        content: `Relevant information about yourself:
+                                ${context.join("\n")}`,
+                    },
+                    ...state.chatLog.slice(-100),
+                ];
+
+                const roleMapGemini = {
+                    "assistant": "model",
+                    "user": "user",
+                    "system": "system",
+                };
+
+                const contents = [];
+                const system_instruction = [];
+
+                for (const msg of messages) {
+                    if (msg.role != "system") {
+                        contents.push({
+                            role: roleMapGemini[msg.role] || msg.role,
+                            parts: [
+                                {
+                                    text: msg.content
+                                }
+                            ]
+                        });
+                    } else {
+                        system_instruction.push({
+                            parts: [
+                                {
+                                    text: msg.content,
+                                }
+                            ]
+                        });
+                    }
+                }
+
+                const model = CONFIG.availableAiModels[CONFIG.availableAiFunctions[state.selectedAiFunction]].models[state.selectedAiModel];
+
+                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-goog-api-key": apiKey,
+                    },
+                    body: JSON.stringify({
+                        system_instruction,
+                        contents,
+                    }),
+                    signal: state.currentAIController.signal,
+                });
+
+                if (!resp.ok) {
+                    const txt = await resp.text();
+                    console.error("Gemini API error", resp.status, txt);
+                    return null;
+                }
+
+                const data = await resp.json();
+                let aiMsg = data.candidates && data.candidates.length > 0 ? data.candidates[0].content.parts[0].text : "Hi";
+                return aiMsg || null;
+
             } catch (e) {
                 if (e.name === 'AbortError') {
                     console.log("[AI] Fetch aborted");
@@ -665,6 +765,21 @@ $(async function () {
         });
     }
 
+    async function ensureGeminiApiKey() {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(["GEMINI_API_KEY"], async (res) => {
+                let key = res.GEMINI_API_KEY;
+                if (!key) {
+                    key = prompt("Enter your Gemini API key (it will be stored locally):");
+                    if (key) {
+                        chrome.storage.local.set({ GEMINI_API_KEY: key.trim() });
+                    }
+                }
+                resolve(key || null);
+            });
+        });
+    }
+
     function saveFineTuningData() {
         if (state.dataForFineTuning.length === 0) {
             return;
@@ -842,6 +957,7 @@ $(async function () {
                             <option value="0" ${state.selectedAiFunction === 0 ? 'selected' : ''}>Ollama (Local)</option>
                             <option value="1" ${state.selectedAiFunction === 1 ? 'selected' : ''}>OpenAI</option>
                             <option value="2" ${state.selectedAiFunction === 2 ? 'selected' : ''}>Custom (Local)</option>
+                            <option value="3" ${state.selectedAiFunction === 3 ? 'selected' : ''}>Google Gemini</option>
                         </select>
                     </div>
 
